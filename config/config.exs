@@ -22,3 +22,9 @@ use Mix.Config
 # here (which is why it is important to import them last).
 #
 #     import_config "#{Mix.env}.exs"
+
+config :logger,
+  level: :debug
+
+config :logger, :console,
+  format: "$date $time $metadata[$level] $levelpad$message\n"

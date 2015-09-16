@@ -7,14 +7,16 @@ defmodule Cafex.Mixfile do
      elixir: "~> 1.0",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps]
+     deps: deps,
+     dialyzer: [flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]]]
   end
 
   # Configuration for the OTP application
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger]]
+    [applications: [:logger],
+     mod: {Cafex.Application, []}]
   end
 
   # Dependencies can be Hex packages:
@@ -27,6 +29,6 @@ defmodule Cafex.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    []
+    [{:kafka_ex, "~> 0.1.0"}]
   end
 end
