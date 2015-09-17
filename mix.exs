@@ -8,6 +8,10 @@ defmodule Cafex.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps,
+     name: "Cafex",
+     source_url: "https://github.com/upyun/cafex",
+     homepage_url: "http://cafex.github.com/",
+     docs: [extras: ["README.md"]],
      dialyzer: [flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]]]
   end
 
@@ -29,6 +33,7 @@ defmodule Cafex.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    []
+    [{:earmark, "~> 0.1.17", only: :dev},
+     {:ex_doc, "~> 0.9.0", only: :dev}]
   end
 end

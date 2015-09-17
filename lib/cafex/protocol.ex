@@ -1,6 +1,4 @@
 defmodule Cafex.Protocol do
-  @client_id "cafex"
-
   @produce_request           0
   @fetch_request             1
   @offset_request            2
@@ -70,6 +68,8 @@ defmodule Cafex.Protocol do
     end
   end
 
+  @client_id "cafex"
+
   def default_client_id, do: @client_id
 
   def create_message_set(value, key \\ nil) do
@@ -131,25 +131,5 @@ defmodule Cafex.Protocol do
 
   def parse_value(crc, attributes, key, << value_size :: 32, value :: size(value_size)-binary >>) do
     {:ok, %{:crc => crc, :attributes => attributes, :key => key, :value => value}}
-  end
-
-
-  alias Cafex.Protocol.Metadata
-  alias Cafex.Protocol.Produce
-
-  def create_metadata_request(correlation_id, topic) do
-    Metadata.create_request(correlation_id, @client_id, topic)
-  end
-
-  def parse_metadata_response(data) do
-    Metadata.parse_response(data)
-  end
-
-  def create_produce_request(correlation_id, topic, partition, value, required_acks, timeout) do
-    Produce.create_request(correlation_id, @client_id, topic, partition, value, nil, required_acks, timeout)
-  end
-
-  def parse_produce_response(data) do
-    Produce.parse_response(data)
   end
 end
