@@ -7,6 +7,7 @@ defmodule Cafex.Producer.Worker do
               topic_server: nil,
               partition: nil,
               socket: nil,
+              client_id: nil,
               required_acks: 1,
               timeout: 60000,
               correlation_id: 0
@@ -14,6 +15,7 @@ defmodule Cafex.Producer.Worker do
 
   alias Cafex.Socket
   alias Cafex.Protocol
+  alias Cafex.Protocol.Produce
 
   # ===================================================================
   # API
@@ -38,11 +40,13 @@ defmodule Cafex.Producer.Worker do
   def init([{host, port} = broker, topic, partition, topic_server, opts]) do
     required_acks = Keyword.get(opts, :required_acks, 1)
     timeout       = Keyword.get(opts, :timeout, 60000)
+    client_id     = Keyword.get(opts, :client_id, Protocol.default_client_id)
 
     state = %State{ broker: broker,
                     topic: topic,
                     topic_server: topic_server,
                     partition: partition,
+                    client_id: client_id,
                     required_acks: required_acks,
                     timeout: timeout }
 
@@ -76,16 +80,17 @@ defmodule Cafex.Producer.Worker do
 
   defp do_produce(message, %{topic: topic,
                              partition: partition,
+                             client_id: client_id,
                              required_acks: required_acks,
                              timeout: timeout,
                              socket: socket,
                              correlation_id: correlation_id} = state) do
-    request = Protocol.create_produce_request(correlation_id, topic, partition,
-                                              message.value, required_acks, timeout)
+    request = Produce.create_request(correlation_id, client_id, topic, partition,
+                                     message.value, message.key, required_acks, timeout)
     state = %{state | correlation_id: correlation_id + 1}
     case Socket.send_sync_request(socket, request) do
       {:ok, data} ->
-        case Protocol.parse_produce_response(data) do
+        case Produce.parse_response(data) do
           [%{partitions: [%{error_code: 0, offset: offset, partition: partition}]}] ->
             {:reply, {:ok, partition, offset}, state}
           [%{partitions: [%{error_code: code}]}] ->

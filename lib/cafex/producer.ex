@@ -6,6 +6,7 @@ defmodule Cafex.Producer do
   require Logger
 
   alias Cafex.Message
+  alias Cafex.Protocol
 
   defmodule State do
     defstruct topic: nil,
@@ -16,6 +17,7 @@ defmodule Cafex.Producer do
               leaders: nil,
               partitions: 0,
               workers: HashDict.new,
+              client_id: nil,
               required_acks: 1,
               timeout: 60000
   end
@@ -42,7 +44,10 @@ defmodule Cafex.Producer do
   def init([topic_pid, opts]) do
     Process.flag(:trap_exit, true)
 
-    state = %State{topic_pid: topic_pid} |> load_metadata
+    client_id = Keyword.get(opts, :client_id, Protocol.default_client_id)
+
+    state = %State{topic_pid: topic_pid,
+                   client_id: client_id} |> load_metadata
                                          |> start_workers
 
     partitioner = Keyword.get(opts, :partitioner)
@@ -109,13 +114,15 @@ defmodule Cafex.Producer do
 
   defp start_worker(partition, %{topic: topic, brokers: brokers,
                                  leaders: leaders, workers: workers,
+                                 client_id: client_id,
                                  required_acks: required_acks,
                                  timeout: timeout} = state) do
     leader = HashDict.get(leaders, partition)
     broker = HashDict.get(brokers, leader)
     Logger.debug fn -> "Starting producer worker { topic: #{topic}, partition: #{partition}, broker: #{inspect broker} } ..." end
-    {:ok, pid} = Cafex.Producer.Worker.start_link(broker, topic, partition, required_acks: required_acks,
-                                                                                  timeout: timeout)
+    {:ok, pid} = Cafex.Producer.Worker.start_link(broker, topic, partition, client_id: client_id,
+                                                                        required_acks: required_acks,
+                                                                              timeout: timeout)
     %{state | workers: HashDict.put(workers, partition, pid)}
   end
 end

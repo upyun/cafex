@@ -1,7 +1,7 @@
 defmodule Cafex do
 
-  def start_topic(name, brokers) do
-    Cafex.Topic.Supervisor.start_topic(name, brokers)
+  def start_topic(name, brokers, opts \\ []) do
+    Cafex.Topic.Supervisor.start_topic(name, brokers, opts)
   end
 
   def start_producer(topic, opts \\ []) do

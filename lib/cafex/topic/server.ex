@@ -11,19 +11,21 @@ defmodule Cafex.Topic.Server do
               brokers: [],
               dead_brokers: [],
               socket: nil,
+              client_id: nil,
               correlation_id: 0,
               timer: nil
   end
 
   alias Cafex.Socket
   alias Cafex.Protocol
+  alias Cafex.Protocol.Metadata
 
   # ===================================================================
   # API
   # ===================================================================
 
-  def start_link(name, brokers) when is_binary(name) do
-    GenServer.start_link __MODULE__, [name, brokers]
+  def start_link(name, brokers, opts \\ []) when is_binary(name) do
+    GenServer.start_link __MODULE__, [name, brokers, opts]
   end
 
   def metadata(pid) do
@@ -34,13 +36,16 @@ defmodule Cafex.Topic.Server do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([name, brokers]) do
+  def init([name, brokers, opts]) do
     Logger.info fn -> "Starting topic server: #{name}" end
+
+    client_id = Keyword.get(opts, :client_id, Protocol.default_client_id)
 
     :random.seed(:os.timestamp)
 
     state = %State{name: name,
-                   brokers: Enum.shuffle(brokers)} |> fetch_metadata
+                   brokers: Enum.shuffle(brokers),
+                   client_id: client_id} |> fetch_metadata
 
     {:ok, state}
   end
@@ -105,13 +110,14 @@ defmodule Cafex.Topic.Server do
               brokers: [broker|rest],
               dead_brokers: deads,
               socket: socket,
+              client_id: client_id,
               correlation_id: correlation_id} = open_socket(state)
 
-    request = Protocol.create_metadata_request(correlation_id, topic)
+    request = Metadata.create_request(correlation_id, client_id, topic)
 
     case Socket.send_sync_request(socket, request) do
       {:ok, data} ->
-        metadata = Protocol.parse_metadata_response(data)
+        metadata = Metadata.parse_response(data)
         brokers = extract_brokers(metadata)
         %{state | metadata: metadata, brokers: brokers, correlation_id: correlation_id + 1}
       {:error, reason} ->
@@ -122,8 +128,8 @@ defmodule Cafex.Topic.Server do
     end
   end
 
-  defp extract_brokers(metadata) do
-    metadata.brokers
+  defp extract_brokers(%{brokers: brokers}) do
+    brokers
     |> Enum.map(fn b -> {b.host, b.port} end)
     |> Enum.shuffle
   end

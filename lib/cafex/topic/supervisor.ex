@@ -5,8 +5,8 @@ defmodule Cafex.Topic.Supervisor do
     Supervisor.start_link __MODULE__, [], name: __MODULE__
   end
 
-  def start_topic(name, brokers) when is_binary(name) do
-    Supervisor.start_child __MODULE__, [name, brokers]
+  def start_topic(name, brokers, opts \\ []) when is_binary(name) do
+    Supervisor.start_child __MODULE__, [name, brokers, opts]
   end
 
   def init([]) do
