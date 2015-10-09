@@ -19,7 +19,7 @@ defmodule Cafex.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger],
+    [applications: [:logger, :erlzk],
      mod: {Cafex.Application, []}]
   end
 
@@ -34,6 +34,7 @@ defmodule Cafex.Mixfile do
   # Type `mix help deps` for more examples and options
   defp deps do
     [{:earmark, "~> 0.1.17", only: :dev},
-     {:ex_doc, "~> 0.9.0", only: :dev}]
+     {:ex_doc,  "~> 0.10.0", only: :dev},
+     {:erlzk,   git: "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git"}]
   end
 end

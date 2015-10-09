@@ -1,45 +1,56 @@
 defmodule Cafex.Protocol.OffsetFetch do
+  @behaviour Cafex.Protocol.Decoder
+
   defmodule Request do
-    defstruct consumer_group: "cafex", topic: "", partition: 0
-    @type t :: %Request{consumer_group: binary, topic: binary, partition: integer}
+    defstruct consumer_group: nil,
+              topics: []
+
+    @type t :: %Request{consumer_group: binary,
+                        topics: [{topic_name :: String.t,
+                                  partitions :: [integer]}]}
   end
 
   defmodule Response do
-    defstruct topic: "", partitions: []
-    @type t :: %Response{topic: binary, partitions: list}
+    defstruct topics: []
 
-    def last_offset(:topic_not_found), do: 0
+    @type t :: %Response{topics: [{partition :: integer,
+                                   offset :: integer,
+                                   metadata :: String.t,
+                                   error:: atom}]}
+  end
 
-    def last_offset(offset_fetch_data) do
-      case offset_fetch_data do
-        [] -> 0
-        _  -> partitions = offset_fetch_data |> hd |> Map.get(:partitions, [])
-          case partitions do
-            [] -> 0
-            _  -> partitions |> hd |> Map.get(:offset, 0)
-          end
-      end
+  defimpl Cafex.Protocol.Request, for: Request do
+    def api_key(_), do: 9
+    def encode(request) do
+      Cafex.Protocol.OffsetFetch.encode(request)
     end
   end
 
-  def create_request(correlation_id, client_id, offset_fetch_request) do
-    Cafex.Protocol.create_request(:offset_fetch, correlation_id, client_id) <> << byte_size(offset_fetch_request.consumer_group) :: 16-signed, offset_fetch_request.consumer_group :: binary, 1 :: 32-signed, byte_size(offset_fetch_request.topic) :: 16-signed, offset_fetch_request.topic :: binary, 1 :: 32-signed, offset_fetch_request.partition :: 32 >>
+  def encode(%{consumer_group: consumer_group, topics: topics}) do
+    [Cafex.Protocol.encode_string(consumer_group),
+     Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+    |> IO.iodata_to_binary
   end
 
-  def parse_response(<< _correlation_id :: 32-signed, topics_size :: 32-signed, topics_data :: binary >>) do
-    parse_topics(topics_size, topics_data)
+  defp encode_topic({topic, partitions}) do
+    [Cafex.Protocol.encode_string(topic),
+     Cafex.Protocol.encode_array(partitions, &encode_partition/1)]
+  end
+  defp encode_partition(partition), do: << partition :: 32-signed >>
+
+  def decode(data) when is_binary(data) do
+    {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
+    %Response{topics: topics}
   end
 
-  defp parse_topics(0, _), do: []
-
-  defp parse_topics(topics_size, << topic_size :: 16-signed, topic :: size(topic_size)-binary, partitions_size :: 32-signed, rest :: binary >>) do
-    {partitions, topics_data} = parse_partitions(partitions_size, rest, [])
-    [%Response{topic: topic, partitions: partitions} | parse_topics(topics_size - 1, topics_data)]
+  defp decode_topic(<< size :: 16-signed, topic :: size(size)-binary, rest :: binary >>) do
+    {partitions, rest} = Cafex.Protocol.decode_array(rest, &decode_partition/1)
+    {{topic, partitions}, rest}
   end
 
-  defp parse_partitions(0, rest, partitions), do: {partitions, rest}
-
-  defp parse_partitions(partitions_size, << partition :: 32-signed, offset :: 64-signed, metadata_size :: 16-signed, metadata :: size(metadata_size)-binary, error_code :: 16-signed, rest :: binary >>, partitions) do
-    parse_partitions(partitions_size - 1, rest, [%{partition: partition, offset: offset, metadata: metadata, error_code: error_code} | partitions])
+  defp decode_partition(<< partition :: 32-signed, offset :: 64-signed,
+                           size :: 16-signed, metadata :: size(size)-binary,
+                           error_code :: 16-signed, rest :: binary >>) do
+    {{partition, offset, metadata, Cafex.Protocol.Errors.error(error_code)}, rest}
   end
 end

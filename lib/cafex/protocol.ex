@@ -1,135 +1,181 @@
 defmodule Cafex.Protocol do
-  @produce_request           0
-  @fetch_request             1
-  @offset_request            2
-  @metadata_request          3
-  @offset_commit_request     8
-  @offset_fetch_request      9
-  @consumer_metadata_request 10
-
   @api_version  0
 
-  defp api_key(:produce) do
-    @produce_request
+  alias Cafex.Protocol.Request
+  alias Cafex.Protocol.Message
+
+  def encode_request(client_id, correlation_id, request) do
+    api_key = Request.api_key(request)
+    payload = Request.encode(request)
+    << api_key :: 16, @api_version :: 16, correlation_id :: 32,
+       byte_size(client_id) :: 16, client_id :: binary,
+       payload :: binary >>
   end
 
-  defp api_key(:fetch) do
-    @fetch_request
+  def decode_response(decoder, << correlation_id :: 32, rest :: binary >>) do
+    {correlation_id, decoder.decode(rest)}
   end
 
-  defp api_key(:offset) do
-    @offset_request
-  end
+  @doc """
+  Encode bytes
 
-  defp api_key(:metadata) do
-    @metadata_request
-  end
+  ## Examples
 
-  defp api_key(:offset_commit) do
-    @offset_commit_request
-  end
+      iex> encode_bytes(nil)
+      <<255, 255, 255, 255>>
 
-  defp api_key(:offset_fetch) do
-    @offset_fetch_request
-  end
+      iex> encode_bytes("")
+      <<255, 255, 255, 255>>
 
-  defp api_key(:consumer_metadata) do
-    @consumer_metadata_request
-  end
-
-  def create_request(type, correlation_id, client_id) do
-    << api_key(type) :: 16, @api_version :: 16, correlation_id :: 32,
-       byte_size(client_id) :: 16, client_id :: binary >>
-  end
-
-  @error_map %{
-     0 => :no_error,
-     1 => :offset_out_of_range,
-     2 => :invalid_message,
-     3 => :unknown_topic_or_partition,
-     4 => :invalid_message_size,
-     5 => :leader_not_available,
-     6 => :not_leader_for_partition,
-     7 => :request_timed_out,
-     8 => :broker_not_available,
-     9 => :replica_not_available,
-    10 => :message_size_too_large,
-    11 => :stale_controller_epoch,
-    12 => :offset_metadata_too_large,
-    14 => :offset_loads_in_progress,
-    15 => :consumer_coordinator_not_available,
-    16 => :not_coordinator_for_consumer
-  }
-
-  def error(err_no) do
-    case err_no do
-      -1 -> :unknown_error
-      _  -> @error_map[err_no] || err_no
-    end
-  end
-
-  @client_id "cafex"
-
-  def default_client_id, do: @client_id
-
-  def create_message_set(value, key \\ nil) do
-    message = create_message(value, key)
-    << 0 :: 64, byte_size(message) :: 32 >> <> message
-  end
-
-  def create_message(value, key \\ nil) do
-    sub = << 0 :: 8, 0 :: 8 >> <> bytes(key) <> bytes(value)
-    crc = :erlang.crc32(sub)
-    << crc :: 32 >> <> sub
-  end
-
-  def bytes(nil), do: << -1 :: 32 >>
-
-  def bytes(data) do
+      iex> encode_bytes("hey")
+      <<0, 0, 0, 3, 104, 101, 121>>
+  """
+  @spec encode_bytes(nil | binary) :: binary
+  def encode_bytes(nil), do: << -1 :: 32-signed >>
+  def encode_bytes(data) when is_binary(data) do
     case byte_size(data) do
-      0 -> << -1 :: 32 >>
-      size -> << size :: 32, data :: binary >>
+      0 -> << -1 :: 32-signed >>
+      size -> << size :: 32-signed, data :: binary >>
     end
   end
 
-  def parse_message_set([], << >>) do
-    {:ok, [], nil}
+  def decode_bytes(<< -1 :: 32-signed, rest :: binary >>) do
+    {nil, rest}
+  end
+  def decode_bytes(<< size :: 32-signed, bytes :: size(size)-binary, rest :: binary >>) do
+    {bytes, rest}
   end
 
-  def parse_message_set([last|_] = list, << >>) do
-    {:ok, Enum.reverse(list), last.offset}
+  @doc """
+  Encode string
+
+  ## Examples
+
+      iex> encode_string(nil)
+      <<255, 255>>
+
+      iex> encode_string("")
+      <<255, 255>>
+
+      iex> encode_string("hey")
+      <<0, 3, 104, 101, 121>>
+  """
+  @spec encode_string(nil | binary) :: binary
+  def encode_string(nil), do: << -1 :: 16-signed >>
+  def encode_string(data) when is_binary(data) do
+    case byte_size(data) do
+      0 -> << -1 :: 16-signed >>
+      size -> << size :: 16-signed, data :: binary >>
+    end
   end
 
-  def parse_message_set(list, << offset :: 64, msg_size :: 32, msg_data :: size(msg_size)-binary, rest :: binary >>) do
-    {:ok, message} = parse_message(msg_data)
-    parse_message_set([Map.put(message, :offset, offset)|list], rest)
+  @doc """
+  Encode kafka array
+
+  ## Examples
+
+      iex> encode_array([], nil)
+      <<0, 0, 0, 0>>
+
+      iex> encode_array([1, 2, 3], fn x -> <<x :: 32-signed>> end)
+      [<<0, 0, 0, 3>>, [<<0, 0, 0, 1>>, <<0, 0, 0, 2>>, <<0, 0, 0, 3>>]]
+  """
+  def encode_array([], _), do: << 0 :: 32-signed >>
+  def encode_array(array, item_encoder) when is_list(array) do
+    [<< length(array) :: 32-signed >>, Enum.map(array, item_encoder)]
   end
 
-  def parse_message_set([], _) do
-    {:ok, [], nil}
+  @doc """
+  Decode kafka array
+
+  ## Examples
+
+  iex> decode_array(<<0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2>>, fn <<x :: 32, rest :: binary>> -> {x, rest} end)
+  {[1, 2], <<>>}
+  """
+  def decode_array(<< num_items :: 32-signed, rest :: binary >>, item_decoder) do
+    decode_array_items(num_items, rest, item_decoder, [])
   end
 
-  def parse_message_set([last|_] = list, _) do
-    {:ok, Enum.reverse(list), last.offset}
+  defp decode_array_items(0, rest, _, acc), do: {Enum.reverse(acc), rest}
+  defp decode_array_items(num_items, data, item_decoder, acc) do
+    {item, rest} = item_decoder.(data)
+    decode_array_items(num_items - 1, rest, item_decoder, [item|acc])
   end
 
-  def parse_message(<< crc :: 32, _magic :: 8, attributes :: 8, rest :: binary>>) do
-    parse_key(crc, attributes, rest)
+  @doc """
+  Encode single kafka message
+
+  ## Examples
+
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey"})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: ""})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key"})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
+  """
+  @spec encode_message(Message.t) :: binary
+  def encode_message(%Message{magic_byte: magic_byte,
+                              attributes: attributes,
+                              offset: offset,
+                              key: key,
+                              value: value}) do
+    sub = << magic_byte :: 8, attributes :: 8,
+             encode_bytes(key) :: binary, encode_bytes(value) :: binary >>
+    crc = :erlang.crc32(sub)
+    msg = << crc :: 32, sub :: binary >>
+    << offset :: 64-signed, byte_size(msg) :: 32-signed, msg :: binary >>
   end
 
-  def parse_key(crc, attributes, << -1 :: 32-signed, rest :: binary >>) do
-    parse_value(crc, attributes, nil, rest)
+  @doc """
+  Decode message
+
+  ## Examples
+
+      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
+      {%Cafex.Protocol.Message{value: "hey"}, <<>>}
+
+      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
+      {%Cafex.Protocol.Message{value: "hey", key: nil}, <<>>}
+
+      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>)
+      {%Cafex.Protocol.Message{value: "hey", key: "key"}, <<>>}
+  """
+  def decode_message(<< offset :: 64-signed,
+                        msg_size :: 32-signed, msg :: size(msg_size)-binary,
+                        rest :: binary >>) do
+    << _crc :: 32, magic :: 8, attributes :: 8, data :: binary >> = msg
+    {key, data} = decode_bytes(data)
+    {value,  _} = decode_bytes(data)
+    {%Message{key: key,
+              value: value,
+              magic_byte: magic,
+              attributes: attributes,
+              offset: offset}, rest}
   end
 
-  def parse_key(crc, attributes, << key_size :: 32, key :: size(key_size)-binary, rest :: binary >>) do
-    parse_value(crc, attributes, key, rest)
+  @doc """
+  Encode MessageSet
+  """
+  @spec encode_message_set([Message.t]) :: binary
+  def encode_message_set(messages) do
+    Enum.map(messages, &encode_message/1) |> IO.iodata_to_binary
   end
 
-  def parse_value(crc, attributes, key, << -1 :: 32-signed >>) do
-    {:ok, %{:crc => crc, :attributes => attributes, :key => key, :value => nil}}
+  @doc """
+  Decode MessageSet
+  """
+  @spec decode_message_set(binary) :: [Message.t]
+  def decode_message_set(data) do
+    decode_message_set_item(data, [])
   end
 
-  def parse_value(crc, attributes, key, << value_size :: 32, value :: size(value_size)-binary >>) do
-    {:ok, %{:crc => crc, :attributes => attributes, :key => key, :value => value}}
+  defp decode_message_set_item(<<>>, acc), do: Enum.reverse(acc)
+  defp decode_message_set_item(data, acc) do
+    {msg, rest} = decode_message(data)
+    decode_message_set_item(rest, [msg|acc])
   end
 end

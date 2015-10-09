@@ -10,7 +10,8 @@ defmodule Cafex.Supervisor do
   def init(_) do
     children = [
       supervisor(Cafex.Topic.Supervisor, []),
-      supervisor(Cafex.Producer.Supervisor, [])
+      supervisor(Cafex.Producer.Supervisor, []),
+      supervisor(Cafex.Consumer.Supervisor, [])
     ]
     supervise children, strategy: :one_for_one,
                     max_restarts: 10,

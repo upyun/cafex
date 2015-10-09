@@ -23,6 +23,13 @@ use Mix.Config
 #
 #     import_config "#{Mix.env}.exs"
 
+config :cafex, :consumer,
+  group_name: "cafex"
+
+config :cafex, :zookeeper,
+  servers: [{"192.168.99.100", 2181}],
+  path: "/elena/cafex"
+
 config :logger,
   level: :debug
 

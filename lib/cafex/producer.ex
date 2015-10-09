@@ -5,8 +5,7 @@ defmodule Cafex.Producer do
 
   require Logger
 
-  alias Cafex.Message
-  alias Cafex.Protocol
+  alias Cafex.Protocol.Message
 
   defmodule State do
     defstruct topic: nil,
@@ -44,7 +43,7 @@ defmodule Cafex.Producer do
   def init([topic_pid, opts]) do
     Process.flag(:trap_exit, true)
 
-    client_id = Keyword.get(opts, :client_id, Protocol.default_client_id)
+    client_id = Keyword.get(opts, :client_id, "cafex_producer")
 
     state = %State{topic_pid: topic_pid,
                    client_id: client_id} |> load_metadata
@@ -95,15 +94,11 @@ defmodule Cafex.Producer do
 
   defp load_metadata(%{topic_pid: topic_pid} = state) do
     metadata = Cafex.Topic.Server.metadata topic_pid
-    brokers = metadata.brokers |> Enum.map(fn b -> {b.node_id, {b.host, b.port}} end)
-                               |> Enum.into(HashDict.new)
 
-    [%{topic: name, partition_metadatas: partitions}] = metadata.topic_metadatas
-
-    leaders = partitions |> Enum.map(fn p -> {p.partition_id, p.leader} end)
-                         |> Enum.into(HashDict.new)
-
-    %{state | topic: name, brokers: brokers, leaders: leaders, partitions: length(partitions)}
+    %{state | topic: metadata.name,
+              brokers: metadata.brokers,
+              leaders: metadata.leaders,
+              partitions: metadata.partitions}
   end
 
   defp start_workers(%{partitions: partitions} = state) do
