@@ -6,16 +6,15 @@ defmodule Cafex.Producer.Worker do
               topic: nil,
               topic_server: nil,
               partition: nil,
-              socket: nil,
               client_id: nil,
+              conn: nil,
               required_acks: 1,
-              timeout: 60000,
-              correlation_id: 0
+              timeout: 60000
   end
 
-  alias Cafex.Socket
-  alias Cafex.Protocol
+  alias Cafex.Connection
   alias Cafex.Protocol.Produce
+  alias Cafex.Protocol.Produce.Request
 
   # ===================================================================
   # API
@@ -40,7 +39,7 @@ defmodule Cafex.Producer.Worker do
   def init([{host, port} = broker, topic, partition, topic_server, opts]) do
     required_acks = Keyword.get(opts, :required_acks, 1)
     timeout       = Keyword.get(opts, :timeout, 60000)
-    client_id     = Keyword.get(opts, :client_id, Protocol.default_client_id)
+    client_id     = Keyword.get(opts, :client_id, "cafex")
 
     state = %State{ broker: broker,
                     topic: topic,
@@ -50,11 +49,11 @@ defmodule Cafex.Producer.Worker do
                     required_acks: required_acks,
                     timeout: timeout }
 
-    case Socket.open(host, port) do
-      {:ok, socket} ->
-        {:ok, %{state | socket: socket}}
-      error ->
-        error
+    case Connection.start_link(host, port, client_id: client_id) do
+      {:ok, pid} ->
+        {:ok, %{state | conn: pid}}
+      {:error, reason} ->
+        {:stop, reason}
     end
   end
 
@@ -65,12 +64,8 @@ defmodule Cafex.Producer.Worker do
     {:stop, :normal, state}
   end
 
-  def handle_info({:tcp_closed, socket}, %{socket: socket} = state) do
-    {:stop, :socket_closed, %{state | socket: nil}}
-  end
-
-  def terminate(_reason, %{socket: socket}) do
-    if socket, do: Socket.close(socket)
+  def terminate(_reason, %{conn: conn}) do
+    if conn, do: Connection.close(conn)
     :ok
   end
 
@@ -80,22 +75,21 @@ defmodule Cafex.Producer.Worker do
 
   defp do_produce(message, %{topic: topic,
                              partition: partition,
-                             client_id: client_id,
                              required_acks: required_acks,
                              timeout: timeout,
-                             socket: socket,
-                             correlation_id: correlation_id} = state) do
-    request = Produce.create_request(correlation_id, client_id, topic, partition,
-                                     message.value, message.key, required_acks, timeout)
-    state = %{state | correlation_id: correlation_id + 1}
-    case Socket.send_sync_request(socket, request) do
-      {:ok, data} ->
-        case Produce.parse_response(data) do
-          [%{partitions: [%{error_code: 0, offset: offset, partition: partition}]}] ->
-            {:reply, {:ok, partition, offset}, state}
-          [%{partitions: [%{error_code: code}]}] ->
-            {:reply, {:error, Protocol.error(code)}, state}
-        end
+                             conn: conn} = state) do
+
+    message = %{message | topic: topic, partition: partition}
+
+    request = %Request{ required_acks: required_acks,
+                        timeout: timeout,
+                        messages: [message] }
+
+    case Connection.request(conn, request, Produce) do
+      {:ok, [{^topic, [%{error_code: 0, offset: offset, partition: partition}]}]} ->
+        {:reply, {:ok, partition, offset}, state}
+      {:ok, [{^topic, [%{error_code: code}]}]} ->
+        {:reply, {:error, Cafex.Protocol.Errors.error(code)}, state}
       {:error, reason} = err ->
         {:stop, reason, err, state}
     end

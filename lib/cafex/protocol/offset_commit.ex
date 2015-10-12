@@ -1,37 +1,57 @@
 defmodule Cafex.Protocol.OffsetCommit do
+  @behaviour Cafex.Protocol.Decoder
+
   defmodule Request do
-    defstruct consumer_group: "cafex", topic: "", partition: 0, offset: 0, metadata: ""
-    @type t :: %Request{consumer_group: binary, topic: binary, partition: integer, offset: integer}
+    defstruct consumer_group: "cafex",
+              topics: []
+
+    @type t :: %Request{consumer_group: String.t,
+                        topics: [{topic_name :: String.t,
+                                  partitions :: [{partition :: integer,
+                                                  offset :: integer,
+                                                  metadata :: binary}]}]}
   end
 
   defmodule Response do
-    defstruct partitions: [], topic: ""
-    @type t :: %Response{partitions: [] | [integer], topic: binary}
+    defstruct topics: []
+
+    @type t :: %Response{ topics: [{topic_name :: String.t,
+                                    partitions :: [{partition :: integer,
+                                                    error_code :: integer}]}] }
   end
 
-  @spec create_request(integer, binary, Request.t) :: binary
-  def create_request(correlation_id, client_id, offset_commit_request) do
-    Cafex.Protocol.create_request(:offset_commit, correlation_id, client_id) <> << byte_size(offset_commit_request.consumer_group) :: 16-signed, offset_commit_request.consumer_group :: binary, 1 :: 32-signed, byte_size(offset_commit_request.topic) :: 16-signed, offset_commit_request.topic :: binary, 1 :: 32-signed, offset_commit_request.partition :: 32-signed, offset_commit_request.offset :: 64, byte_size(offset_commit_request.metadata) :: 16-signed, offset_commit_request.metadata :: binary >>
+  defimpl Cafex.Protocol.Request, for: Request do
+    def api_key(_), do: 8
+    def encode(request) do
+      Cafex.Protocol.OffsetCommit.encode(request)
+    end
   end
 
-  @spec parse_response(binary) :: [] | [Response.t]
-  def parse_response(<< _correlation_id :: 32-signed, topics_count :: 32-signed, topics_data :: binary >>) do
-    parse_topics(topics_count, topics_data)
+  def encode(%{consumer_group: consumer_group, topics: topics}) do
+    [Cafex.Protocol.encode_string(consumer_group),
+     Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+    |> IO.iodata_to_binary
   end
 
-  defp parse_topics(0, _), do: []
-
-  defp parse_topics(topic_count, << topic_size :: 16-signed, topic :: size(topic_size)-binary, partitions_count :: 32-signed, rest :: binary >>) do
-    {partitions, topics_data} = parse_partitions(partitions_count, rest, [])
-    [%Response{topic: topic, partitions: partitions} | parse_topics(topic_count - 1, topics_data)]
+  defp encode_topic({topic, partitions}) do
+    [Cafex.Protocol.encode_string(topic),
+     Cafex.Protocol.encode_array(partitions, &encode_partition/1)]
+  end
+  defp encode_partition({partition, offset, metadata}) do
+    [<< partition :: 32-signed, offset :: 64 >>, Cafex.Protocol.encode_string(metadata)]
   end
 
-  defp parse_topics(_, _), do: []
+  def decode(data) when is_binary(data) do
+    {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
+    %Response{topics: topics}
+  end
 
-  defp parse_partitions(0, rest, partitions), do: {partitions, rest}
+  defp decode_topic(<< size :: 16-signed, topic :: size(size)-binary, rest :: binary >>) do
+    {partitions, rest} = Cafex.Protocol.decode_array(rest, &decode_partition/1)
+    {{topic, partitions}, rest}
+  end
 
-  defp parse_partitions(partitions_count, << partition :: 32-signed, _error_code :: 16-signed, rest :: binary >>, partitions) do
-    #do something with error_code
-    parse_partitions(partitions_count - 1, rest, [partition | partitions])
+  defp decode_partition(<< partition :: 32-signed, error_code :: 16-signed, rest :: binary >>) do
+    {{partition, Cafex.Protocol.Errors.error(error_code)}, rest}
   end
 end

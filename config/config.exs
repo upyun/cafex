@@ -23,6 +23,22 @@ use Mix.Config
 #
 #     import_config "#{Mix.env}.exs"
 
+config :cafex, :myconsumer,
+  client_id: "cafex",
+  zookeeper: [
+    servers: [{"192.168.99.100", 2181}],
+    path: "/elena/cafex"
+  ],
+  handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
+
+config :cafex, :myconsumer2,
+  client_id: "cafex",
+  zookeeper: [
+    servers: [{"192.168.99.100", 2181}],
+    path: "/elena/cafex"
+  ],
+  handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
+
 config :logger,
   level: :debug
 

@@ -1,90 +1,54 @@
 defmodule Cafex.Protocol.Metadata do
-  @moduledoc """
-  Copied from KafkaEx
-  """
+  @behaviour Cafex.Protocol.Decoder
 
   defmodule Request do
-    defstruct topic: ""
-    @type t :: %Request{topic: binary}
+    defstruct topics: []
+
+    @type t :: %Request{topics: [binary]}
   end
 
   defmodule Response do
-    defstruct brokers: [], topic_metadatas: []
+    defstruct brokers: [], topics: []
   end
 
-  defmodule Broker do
-    defstruct node_id: 0, host: "", port: 0
+  defimpl Cafex.Protocol.Request, for: Request do
+    def api_key(_), do: 3
+
+    def encode(%Request{topics: topics}) do
+      topics
+      |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
+      |> IO.iodata_to_binary
+    end
   end
 
-  defmodule TopicMetadata do
-    defstruct error_code: 0, topic: "", partition_metadatas: []
+  def decode(data) when is_binary(data) do
+    {brokers, rest} = Cafex.Protocol.decode_array(data, &parse_broker/1)
+    {topics,     _} = Cafex.Protocol.decode_array(rest, &parse_topic/1)
+    %Response{brokers: brokers, topics: topics}
   end
 
-  defmodule PartitionMetadata do
-    defstruct error_code: 0, partition_id: 0, leader: -1, replicas: [], isrs: []
+  defp parse_broker(<< node_id :: 32-signed, host_len :: 16-signed,
+                       host :: size(host_len)-binary, port :: 32-signed,
+                       rest :: binary >>) do
+    {%{node_id: node_id, host: host, port: port}, rest}
   end
 
-  def create_request(correlation_id, client_id, "") do
-    Cafex.Protocol.create_request(:metadata, correlation_id, client_id) <> << 0 :: 32-signed >>
+  defp parse_topic(<< error_code :: 16-signed, topic_len :: 16-signed,
+                      topic :: size(topic_len)-binary, rest :: binary >>) do
+    {partitions, rest} = Cafex.Protocol.decode_array(rest, &parse_partition/1)
+    {%{error_code: error_code, name: topic, partitions: partitions}, rest}
   end
 
-  def create_request(correlation_id, client_id, topic) when is_binary(topic) do
-    create_request(correlation_id, client_id, [topic])
+  defp parse_partition(<< error_code :: 16-signed, partition_id :: 32-signed,
+                          leader :: 32-signed, rest :: binary >>) do
+    {replicas, rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
+    {isrs,     rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
+    {%{error_code: error_code,
+       partition_id: partition_id,
+       leader: leader,
+       replicas: replicas,
+       isrs: isrs}, rest}
   end
 
-  def create_request(correlation_id, client_id, topics) when is_list(topics) do
-    Cafex.Protocol.create_request(:metadata, correlation_id, client_id)
-    <> << length(topics) :: 32-signed, topic_data(topics) :: binary >>
-  end
-
-  defp topic_data([]), do: ""
-
-  defp topic_data([topic|topics]) do
-    << byte_size(topic) :: 16-signed, topic :: binary >> <> topic_data(topics)
-  end
-
-  def parse_response(<< _correlation_id :: 32-signed, brokers_size :: 32-signed, rest :: binary >>) do
-    {brokers, rest} = parse_brokers(brokers_size, rest, [])
-    << topic_metadatas_size :: 32-signed, rest :: binary >> = rest
-    %Response{brokers: brokers, topic_metadatas: parse_topic_metadatas(topic_metadatas_size, rest)}
-  end
-
-  defp parse_brokers(0, rest, brokers), do: {brokers, rest}
-
-  defp parse_brokers(brokers_size, << node_id :: 32-signed, host_len :: 16-signed, host :: size(host_len)-binary, port :: 32-signed, rest :: binary >>, brokers) do
-    parse_brokers(brokers_size-1, rest, [%Broker{node_id: node_id, host: host, port: port} | brokers])
-  end
-
-  defp parse_topic_metadatas(0, _), do: []
-
-  defp parse_topic_metadatas(topic_metadatas_size, << error_code :: 16-signed, topic_len :: 16-signed, topic :: size(topic_len)-binary, partition_metadatas_size :: 32-signed, rest :: binary >>) do
-    {partition_metadatas, rest} = parse_partition_metadatas(partition_metadatas_size, [], rest)
-    [%TopicMetadata{error_code: error_code, topic: topic, partition_metadatas: partition_metadatas} | parse_topic_metadatas(topic_metadatas_size-1, rest)]
-  end
-
-  defp parse_partition_metadatas(0, partition_metadatas, rest), do: {partition_metadatas, rest}
-
-  defp parse_partition_metadatas(partition_metadatas_size, partition_metadatas, << error_code :: 16-signed, partition_id :: 32-signed, leader :: 32-signed, rest :: binary >>) do
-    {replicas, rest} =  parse_replicas(rest)
-    {isrs, rest} =  parse_isrs(rest)
-    parse_partition_metadatas(partition_metadatas_size-1, [%PartitionMetadata{error_code: error_code, partition_id: partition_id, leader: leader, replicas: replicas, isrs: isrs} | partition_metadatas], rest)
-  end
-
-  defp parse_replicas(<< num_replicas :: 32-signed, rest :: binary >>) do
-    parse_int32_array(num_replicas, rest)
-  end
-
-  defp parse_isrs(<< num_isrs :: 32-signed, rest ::binary >>) do
-    parse_int32_array([], num_isrs, rest)
-  end
-
-  defp parse_int32_array(array \\ [], num, data)
-
-  defp parse_int32_array(array, 0, rest) do
-    {Enum.reverse(array), rest}
-  end
-
-  defp parse_int32_array(array, num, << value :: 32-signed, rest :: binary >>) do
-    parse_int32_array([value|array], num-1, rest)
-  end
+  defp parse_int32(<< value :: 32-signed, rest :: binary >>), do: {value, rest}
 end
