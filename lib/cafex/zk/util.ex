@@ -14,6 +14,7 @@ defmodule Cafex.ZK.Util do
           :ok ->
             case :erlzk.create(pid, path) do
               {:ok, _} -> :ok
+              {:error, :node_exists} -> :ok
               error -> error
             end
           error ->

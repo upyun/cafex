@@ -5,13 +5,20 @@ defmodule Cafex.Protocol.Offset do
     defstruct replica_id: -1,
               topics: []
 
-    @type t :: %Request{ replica_id: integer, topics: list }
+    @type t :: %Request{replica_id: integer,
+                        topics: [{topic :: String.t,
+                                  partitions :: [{partition :: integer,
+                                                  time :: integer,
+                                                  max_number_of_offsets :: integer}]}]}
   end
 
   defmodule Response do
     defstruct offsets: []
 
-    @type t :: %Response{ offsets: list }
+    @type t :: %Response{ offsets: [{topic :: String.t,
+                                     partitions :: [{partition :: integer,
+                                                     error :: atom,
+                                                     offsets :: [integer]}]}]}
   end
 
 
@@ -49,7 +56,7 @@ defmodule Cafex.Protocol.Offset do
 
   defp parse_partition(<< partition :: 32-signed, error_code :: 16-signed, rest :: binary >>) do
     {offsets, rest} = Cafex.Protocol.decode_array(rest, &parse_offset/1)
-    {%{partition: partition, error_code: error_code, offsets: offsets}, rest}
+    {%{partition: partition, error: Cafex.Protocol.Errors.error(error_code), offsets: offsets}, rest}
   end
 
   defp parse_offset(<< offset :: 64-signed, rest :: binary >>), do: {offset, rest}

@@ -12,16 +12,20 @@ defmodule Cafex do
     Cafex.Producer.produce(producer, value, opts)
   end
 
+  def fetch(topic_pid, partition, offset) when is_integer(partition)
+                                           and is_integer(offset) do
+    Cafex.Topic.Server.fetch topic_pid, partition, offset
+  end
+
   @doc """
   Start consumer
 
   ## Options
 
-  * group_name  - consumer group name
-  * zk_servers  - zookeeper servers
-  * zk_path     - zookeeper root path
+  * zookeeper  - zookeeper config
+  * handler    - handler module and initialize args
   """
-  def start_consumer(topic_pid, opts \\ []) do
-    Cafex.Consumer.Supervisor.start_consumer(topic_pid, opts)
+  def start_consumer(name, topic_pid, opts \\ []) do
+    Cafex.Consumer.Supervisor.start_consumer(name, topic_pid, opts)
   end
 end

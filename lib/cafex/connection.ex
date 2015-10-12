@@ -33,6 +33,10 @@ defmodule Cafex.Connection do
     GenServer.call pid, {:request, request, decoder}
   end
 
+  def async_request(pid, request, decoder, receiver) do
+    GenServer.cast pid, {:async_request, request, decoder, receiver}
+  end
+
   def close(pid) do
     GenServer.call pid, :close
   end
@@ -54,25 +58,27 @@ defmodule Cafex.Connection do
     {:ok, state}
   end
 
-  def handle_call({:request, request, decoder}, _from, %{client_id: client_id,
-                                                         correlation_id: correlation_id,
-                                                         timeout: timeout} = state) do
-    data = Cafex.Protocol.encode_request(client_id, correlation_id, request)
-
-    state = %{state | correlation_id: correlation_id + 1} |> maybe_open_socket
-
-    case send_sync_request(state.socket, data, timeout) do
-      {:ok, data} ->
-        {_, reply} = Cafex.Protocol.decode_response(decoder, data)
+  def handle_call({:request, request, decoder}, _from, state) do
+    case do_request(request, decoder, state) do
+      {{:ok, reply}, state} ->
         {:reply, {:ok, reply}, state}
-      {:error, reason} ->
-        Logger.error "Error sending request to broker: #{state.host}:#{state.port}"
+      {{:error, reason}, state} ->
         {:stop, reason, state}
     end
   end
 
   def handle_call(:close, _from, state) do
     {:stop, :normal, :ok, state}
+  end
+
+  def handle_cast({:async_request, request, decoder, receiver}, state) do
+    case do_request(request, decoder, state) do
+      {{:ok, reply}, state} ->
+        send_reply(receiver, {:ok, reply})
+        {:noreply, state}
+      {{:error, reason}, state} ->
+        {:stop, reason, state}
+    end
   end
 
   def handle_info({:tcp_closed, socket}, %{socket: socket} = state) do
@@ -119,6 +125,41 @@ defmodule Cafex.Connection do
     after
       timeout ->
         {:error, :timeout}
+    end
+  end
+
+  defp do_request(request, decoder, %{client_id: client_id,
+                                      correlation_id: correlation_id,
+                                      timeout: timeout} = state) do
+    data = Cafex.Protocol.encode_request(client_id, correlation_id, request)
+
+    state = %{state | correlation_id: correlation_id + 1} |> maybe_open_socket
+
+    case send_sync_request(state.socket, data, timeout) do
+      {:ok, data} ->
+        {_, reply} = Cafex.Protocol.decode_response(decoder, data)
+        {{:ok, reply}, state}
+      {:error, reason} ->
+        Logger.error "Error sending request to broker: #{state.host}:#{state.port}"
+        {{:error, reason}, state}
+    end
+  end
+
+  defp send_reply({:fsm, pid}, reply) when is_pid(pid) do
+    cast_send pid, {:"$gen_event", {:kafka_response, reply}}
+  end
+  defp send_reply({:server, pid}, reply) when is_pid(pid) do
+    cast_send pid, {:"$gen_cast", {:kafka_response, reply}}
+  end
+  defp send_reply(pid, reply) when is_pid(pid) do
+    cast_send pid, {:kafka_response, reply}
+  end
+
+  defp cast_send(dest, msg) do
+    try do
+      :erlang.send dest, msg, [:noconnect, :nosuspend]
+    catch
+      _, reason -> {:error, reason}
     end
   end
 end

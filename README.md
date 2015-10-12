@@ -17,14 +17,16 @@ iex> Cafex.produce producer, "message", key: "key"
 defmodule MyConsumer do
   use Cafex.Consumer
 
-  def consume(msg) do
+  def consume(msg, state) do
     # handle the msg
-    :ok
+    {:ok, state}
   end
 end
 
 iex> Application.start :cafex
-iex> {:ok, topic} = Cafex.start_topic "test", [{"127.0.0.1", 9092}]
-iex> Cafex.start_consumer "test", "group_name", "127.0.0.1:2191/cafex", module: MyConsumer,
-                                                                     client_id: "myconsumer"
+iex> {:ok, pid} = Cafex.start_topic "test", [{"127.0.0.1", 9092}]
+iex> {:ok, consumer} = Cafex.start_consumer pid, :myconsumer, client_id: "myconsumer",
+                                                              zookeeper: [servers: [{"192.168.99.100", 2181}],
+                                                                          path: "/cafex"],
+                                                              handler: {MyConsumer, []}                                         
 ```

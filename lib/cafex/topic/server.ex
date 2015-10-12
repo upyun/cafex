@@ -17,7 +17,11 @@ defmodule Cafex.Topic.Server do
 
   alias Cafex.Connection
   alias Cafex.Protocol.Metadata
-  alias Cafex.Protocol.Metadata.Request
+  alias Cafex.Protocol.Fetch
+  alias Cafex.Protocol.Offset
+  alias Cafex.Protocol.Fetch.Request,    as: FetchRequest
+  alias Cafex.Protocol.Offset.Request,   as: OffsetRequest
+  alias Cafex.Protocol.Metadata.Request, as: MetadataRequest
 
   # ===================================================================
   # API
@@ -29,6 +33,14 @@ defmodule Cafex.Topic.Server do
 
   def metadata(pid) do
     GenServer.call pid, :metadata
+  end
+
+  def fetch(pid, partition, offset) do
+    GenServer.call pid, {:fetch, partition, offset}
+  end
+
+  def offset(pid, partition, time, max) do
+    GenServer.call pid, {:offset, partition, time, max}
   end
 
   # ===================================================================
@@ -54,6 +66,16 @@ defmodule Cafex.Topic.Server do
   def handle_call(:metadata, _from, state) do
     %{metadata: metadata} = state = fetch_metadata(state)
     {:reply, metadata, state}
+  end
+
+  def handle_call({:fetch, partition, offset}, _from, state) do
+    reply = fetch_messages(partition, offset, state)
+    {:reply, reply, state}
+  end
+
+  def handle_call({:offset, partition, time, max}, _from, state) do
+    reply = get_offset(partition, time, max, state)
+    {:reply, reply, state}
   end
 
   def handle_info({:timeout, tref, :close_conn}, %{timer: tref} = state) do
@@ -122,13 +144,13 @@ defmodule Cafex.Topic.Server do
               dead_brokers: deads,
               conn: conn_pid} = open_conn(state)
 
-    request = %Request{ topics: [topic] }
+    request = %MetadataRequest{ topics: [topic] }
 
     case Connection.request(conn_pid, request, Metadata) do
       {:ok, metadata} ->
         metadata = extract_metadata(metadata)
         brokers  = metadata.brokers
-                   |> Map.values
+                   |> Dict.values
                    |> Enum.shuffle
         %{state | metadata: metadata, feed_brokers: brokers}
       {:error, reason} ->
@@ -149,5 +171,44 @@ defmodule Cafex.Topic.Server do
                          |> Enum.into(HashDict.new)
 
     %{name: name, brokers: brokers, leaders: leaders, partitions: length(partitions)}
+  end
+
+  @wait_time 100
+  @min_bytes 32 * 1024
+  @max_bytes 1024 * 1024
+
+  defp fetch_messages(partition, _offset, %{partitions: partitions}) when partition >= partitions do
+    {:error, :unknown_partition}
+  end
+  defp fetch_messages(partition, offset, %{name: name, metadata: metadata}) do
+    {host, port} = leader_for_partition(metadata, partition)
+    request = %FetchRequest{max_wait_time: @wait_time,
+                            min_bytes: @min_bytes,
+                            topics: [{name, [{partition, offset, @max_bytes}]}]}
+    {:ok, pid} = Connection.start_link(host, port)
+    try do
+      Connection.request(pid, request, Fetch)
+    after
+      Connection.close(pid)
+    end
+  end
+
+  defp leader_for_partition(%{brokers: brokers, leaders: leaders}, partition) do
+    leader = HashDict.get(leaders, partition)
+    HashDict.get(brokers, leader)
+  end
+
+  defp get_offset(partition, _time, _max, %{partitions: partitions}) when partition >= partitions do
+    {:error, :unknown_partition}
+  end
+  defp get_offset(partition, time, max, %{name: name, metadata: metadata}) do
+    {host, port} = leader_for_partition(metadata, partition)
+    request = %OffsetRequest{topics: [{name, [{partition, time, max}]}]}
+    {:ok, pid} = Connection.start_link(host, port)
+    try do
+      Connection.request(pid, request, Offset)
+    after
+      Connection.close(pid)
+    end
   end
 end

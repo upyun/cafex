@@ -31,7 +31,7 @@ defmodule Cafex.ZK.Leader do
         {:ok, List.to_string(seq)}
       {:error, :no_node} ->
         :ok = Util.create_nodes(pid, path)
-        election(pid, path)
+        create_node(pid, path)
     end
   end
 

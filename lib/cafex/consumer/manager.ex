@@ -26,6 +26,7 @@ defmodule Cafex.Consumer.Manager do
               zk_path: nil,
               zk_pid: nil,
               zk_node: nil,
+              handler: nil,
               topic_name: nil,
               brokers: nil,
               leaders: nil,
@@ -46,8 +47,8 @@ defmodule Cafex.Consumer.Manager do
   # API
   # ===================================================================
 
-  def start_link(topic_pid, opts \\ []) do
-    GenServer.start_link __MODULE__, [topic_pid, opts]
+  def start_link(name, topic_pid, opts \\ []) do
+    GenServer.start_link __MODULE__, [name, topic_pid, opts], name: name
   end
 
   def offset_commit(pid, partition, offset, metadata \\ "") do
@@ -62,19 +63,22 @@ defmodule Cafex.Consumer.Manager do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([topic_pid, opts]) do
+  def init([name, topic_pid, opts]) do
     Process.flag(:trap_exit, true)
 
-    group_name = Util.get_config(opts, :group_name)
-    zk_config  = Util.get_config(opts, :zookeeper, [])
+    cfg        = Application.get_env(:cafex, name, [])
+    handler    = Util.get_config(opts, cfg, :handler)
+    zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_servers = Keyword.get(zk_config, :servers, [{"127.0.0.1", 2181}])
                   |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end)
     zk_path    = Keyword.get(zk_config, :path, "/cafex")
 
+    group_name = Atom.to_string(name)
     Logger.info fn -> "Starting consumer: #{group_name} ..." end
 
     state = %State{ group_name: group_name,
                     topic_pid: topic_pid,
+                    handler: handler,
                     zk_servers: zk_servers,
                     zk_path: zk_path }
             |> load_metadata
@@ -88,6 +92,9 @@ defmodule Cafex.Consumer.Manager do
     {:ok, state}
   end
 
+  def handle_call({:offset_commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
+    {:reply, {:error, :unknown_partition}, state}
+  end
   def handle_call({:offset_commit, partition, offset, metadata}, _from, %{group_name: group,
                                                                           topic_name: topic,
                                                                           coordinator: coordinator} = state) do
@@ -95,11 +102,21 @@ defmodule Cafex.Consumer.Manager do
     {:reply, reply, state}
   end
 
+  def handle_call({:offset_fetch, partition}, _from, %{partitions: partitions} = state) when partition >= partitions do
+    {:reply, {:error, :unknown_partition}, state}
+  end
   def handle_call({:offset_fetch, partition}, _from, %{group_name: group,
                                                        topic_name: topic,
+                                                       topic_pid: topic_pid,
                                                        coordinator: coordinator} = state) do
-    reply = offset_fetch(coordinator, group, topic, partition)
-    {:reply, reply, state}
+    case offset_fetch(coordinator, group, topic, partition) do
+      {:ok, _} = reply ->
+        {:reply, reply, state}
+      {:error, :unknown_topic_or_partition} ->
+        {:reply, get_offset(topic_pid, partition), state}
+      error ->
+        {:reply, error, state}
+    end
   end
 
   def handle_info({:leader_election, seq}, %{leader: {_, seq}} = state) do
@@ -108,6 +125,7 @@ defmodule Cafex.Consumer.Manager do
 
   # TODO handle zk messages
   # TODO handle linked process EXIT
+  # TODO handle worker lock timeout
 
   def terminate(_reason, state) do
     state |> leader_resign
@@ -135,7 +153,7 @@ defmodule Cafex.Consumer.Manager do
                     topic_name: topic_name,
                     zk_servers: zk_servers,
                     zk_path: zk_path} = state) do
-    {:ok, pid} = :erlzk.connect(zk_servers, 30000, [])
+    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [])
     path = Path.join [zk_path, topic_name, group_name]
     %{state | zk_pid: pid, zk_path: path}
   end
@@ -243,9 +261,16 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp do_start_worker(partition, %{group_name: group,
-                                    topic_name: topic}) do
+                                    topic_name: topic,
+                                    brokers: brokers,
+                                    leaders: leaders,
+                                    handler: handler,
+                                    zk_pid: zk_pid,
+                                    zk_path: zk_path}) do
     Logger.info fn -> "Starting consumer worker: #{topic}:#{group}:#{partition}" end
-    Worker.start_link(topic, group, partition)
+    leader = HashDict.get(leaders, partition)
+    broker = HashDict.get(brokers, leader)
+    Worker.start_link(self, handler, topic, group, partition, broker, zk_pid, zk_path)
   end
 
   defp stop_workers(%{workers: workers} = state) do
@@ -253,6 +278,19 @@ defmodule Cafex.Consumer.Manager do
       Worker.stop pid
     end
     %{state | workers: HashDict.new}
+  end
+
+  defp get_offset(topic_pid, partition) when is_pid(topic_pid) and is_integer(partition) do
+    case Cafex.Topic.Server.offset(topic_pid, partition, :earliest, 1) do
+      {:ok, %{offsets: [{_, [%{error: :no_error, offsets: [offset]}]}]}} ->
+        {:ok, {offset, ""}}
+      {:ok, %{offsets: [{_, [%{error: :no_error, offsets: []}]}]}} ->
+        {:ok, {0, ""}}
+      {:ok, %{offsets: [{_, [%{error: error}]}]}} ->
+        {:error, error}
+      error ->
+        error
+    end
   end
 
   defp offset_fetch(coordinator_pid, group, topic, partition) do
