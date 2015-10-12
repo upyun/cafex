@@ -23,8 +23,8 @@ defmodule Cafex.ZK.Util do
     end
   end
 
-  def get_children_with_data(pid, path) do
-    case :erlzk.get_children(pid, path) do
+  def get_children_with_data(pid, path, watcher) do
+    case :erlzk.get_children(pid, path, watcher) do
       {:ok, children} ->
         {:ok, children |> Enum.map(fn x ->
                          x = List.to_string(x)

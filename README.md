@@ -30,3 +30,7 @@ iex> {:ok, consumer} = Cafex.start_consumer pid, :myconsumer, client_id: "mycons
                                                                           path: "/cafex"],
                                                               handler: {MyConsumer, []}                                         
 ```
+
+### TODO
+
+* Rebalance

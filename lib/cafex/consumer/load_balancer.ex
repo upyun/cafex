@@ -43,17 +43,29 @@ defmodule Cafex.Consumer.LoadBalancer do
 
       iex> rebalance [{:a, [0, 1]}, {:c, [2]}], 5
       [{:a, [0, 1, 3]}, {:c, [2, 4]}]
+
+      iex> rebalance [{:a, []}, {:b, [0, 1, 2, 3, 4]}], 5
+      [{:a, [3, 4]}, {:b, [0, 1, 2]}]
   """
   @spec balance([{atom, [integer]}], integer) :: [{atom, [integer]}]
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
     count     = round(partitions / length(consumers))
     all       = Enum.into(0..(partitions - 1), HashSet.new)
+
+    {layout, overflow} =
+    Enum.reduce layout, {[], []}, fn {w, p}, {l, n} ->
+      {keep, overflow} = Enum.split(p, count)
+      {[{w, keep}|l], n ++ overflow}
+    end
+    layout = Enum.sort(layout)
+
     assigned  = layout |> Keyword.values
                        |> List.flatten
                        |> Enum.into(HashSet.new)
     not_assigned = all |> HashSet.difference(assigned)
-                       |> HashSet.to_list
+                       |> Enum.into(overflow)
+                       |> Enum.uniq
                        |> Enum.sort
 
     {new_layout, []} =

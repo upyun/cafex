@@ -87,7 +87,7 @@ defmodule Cafex.Consumer.Manager do
             |> leader_election
             |> load_balance
             |> start_offset_coordinator
-            |> start_workers
+            |> restart_workers
 
     {:ok, state}
   end
@@ -120,7 +120,26 @@ defmodule Cafex.Consumer.Manager do
   end
 
   def handle_info({:leader_election, seq}, %{leader: {_, seq}} = state) do
-    {:noreply, leader_election(state)}
+    state = state |> leader_election
+                  |> load_balance
+                  |> restart_workers
+    {:noreply, state}
+  end
+
+  def handle_info({_, path, :node_data_changed}, state) do
+    Logger.info fn -> "#{path} partition layout changed, restart_workers" end
+    state = restart_workers(state)
+    {:noreply, state}
+  end
+  def handle_info({_, _path, :node_children_changed}, %{group_name: group} = state) do
+    Logger.info fn -> "#{group} consumers changed, rebalancing ..." end
+    state = load_balance(state)
+    {:noreply, state}
+  end
+
+  def handle_info({:EXIT, pid, reason}, state) do
+    IO.puts "process exit #{inspect pid}, reason: #{inspect reason}, #{inspect state.workers}"
+    {:noreply, state}
   end
 
   # TODO handle zk messages
@@ -214,7 +233,7 @@ defmodule Cafex.Consumer.Manager do
 
   defp zk_get_consumers(zk, path) do
     path = Path.join(path, "consumers")
-    {:ok, children} = Cafex.ZK.Util.get_children_with_data(zk, path)
+    {:ok, children} = Cafex.ZK.Util.get_children_with_data(zk, path, self)
     children |> Enum.map(fn {x, v} -> {String.to_atom(x), decode_partitions(v)} end)
              |> Enum.sort
   end
@@ -237,9 +256,16 @@ defmodule Cafex.Consumer.Manager do
     "[#{ partitions |> Enum.map(&Integer.to_string/1) |> Enum.join(",") }]"
   end
 
-  defp start_workers(%{zk_pid: zk, zk_node: zk_node} = state) do
+  defp restart_workers(%{zk_pid: zk, zk_node: zk_node, workers: workers} = state) do
     {:ok, {data, _stat}} = :erlzk.get_data(zk, zk_node, self)
     partitions = decode_partitions(data)
+    should_stop = HashDict.keys(workers) -- partitions
+
+    state =
+    Enum.reduce should_stop, state, fn partition, acc ->
+      stop_worker(partition, acc)
+    end
+
     Enum.reduce partitions, state, fn partition, acc ->
       start_worker(partition, acc)
     end
@@ -257,6 +283,16 @@ defmodule Cafex.Consumer.Manager do
           true ->
             state
         end
+    end
+  end
+
+  defp stop_worker(partition, %{workers: workers} = state) do
+    case HashDict.get(workers, partition) do
+      nil ->
+        state
+      pid ->
+        Worker.stop(pid)
+        %{state | workers: HashDict.delete(workers, partition)}
     end
   end
 
