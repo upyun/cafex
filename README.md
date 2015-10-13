@@ -31,6 +31,19 @@ iex> {:ok, consumer} = Cafex.start_consumer pid, :myconsumer, client_id: "mycons
                                                               handler: {MyConsumer, []}                                         
 ```
 
+`start_consumer` 的 `options` 可以放在 `config/config.exs` 中：
+
+```elixir
+config :cafex, :myconsumer,
+  client_id: "cafex",
+  zookeeper: [
+    servers: [{"192.168.99.100", 2181}],
+    path: "/elena/cafex"
+  ],
+  handler: {MyConsumer, []}
+```
+
 ### TODO
 
-* Rebalance
+* Simple Consumer
+* 目前有很多参数写死在代码里的, 增加更多参数的配置选项
