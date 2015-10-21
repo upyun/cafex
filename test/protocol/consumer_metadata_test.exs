@@ -19,6 +19,6 @@ defmodule Cafex.Protocol.ConsumerMetadata.Test do
     assert ConsumerMetadata.decode(response) == %Response{ coordinator_id: 49158,
                                                            coordinator_host: "192.168.59.103",
                                                            coordinator_port: 49158,
-                                                           error_code: 0 }
+                                                           error: :no_error }
   end
 end

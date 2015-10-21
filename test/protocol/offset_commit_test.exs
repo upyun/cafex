@@ -18,6 +18,6 @@ defmodule Cafex.Protocol.OffsetCommit.Test do
 
   test "parse_response correctly parses a valid response" do
     response = <<0, 0, 0, 1, 0, 4, 102, 111, 111, 100, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0>>
-    assert OffsetCommit.decode(response) == %Response{topics: [{"food", [{0, 0}]}]}
+    assert OffsetCommit.decode(response) == %Response{topics: [{"food", [{0, :no_error}]}]}
   end
 end

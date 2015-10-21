@@ -27,7 +27,7 @@ defmodule Cafex.Protocol.Fetch.Test do
                     3 :: 32, "bar" :: binary >>
 
     expected_response = %Response{topics: [{"bar", [
-                          %{error_code: 0,
+                          %{error: :no_error,
                             hwm_offset: 10,
                             partition: 0,
                             messages: [%Message{attributes: 0,
@@ -51,7 +51,7 @@ defmodule Cafex.Protocol.Fetch.Test do
                     -1 :: 32, 3 :: 32, "hey" :: binary >>
 
     expected_response = %Response{topics: [{"food", [
-          %{error_code: 0, hwm_offset: 56, partition: 0, messages: [
+          %{error: :no_error, hwm_offset: 56, partition: 0, messages: [
               %Message{attributes: 0, key: nil, offset: 0, value: "hey"},
               %Message{attributes: 0, key: nil, offset: 1, value: "hey"},
               %Message{attributes: 0, key: nil, offset: 2, value: "hey"}
@@ -66,7 +66,7 @@ defmodule Cafex.Protocol.Fetch.Test do
                     1 :: 32,
                     1 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8, -1 :: 32, 3 :: 32, "bar" :: binary >>
     expected_response = %Response{topics: [{"bar", [
-            %{error_code: 0, hwm_offset: 10, partition: 0, messages: [
+            %{error: :no_error, hwm_offset: 10, partition: 0, messages: [
                 %Message{attributes: 0, key: nil, offset: 1, value: "bar"}
               ]}]}]}
     assert expected_response == Fetch.decode(response)
