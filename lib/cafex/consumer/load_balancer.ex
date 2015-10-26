@@ -1,6 +1,8 @@
 defmodule Cafex.Consumer.LoadBalancer do
 
   @doc """
+  _Deprecated_
+
   Balance partition assignment between consumers
 
   ## Examples
@@ -46,35 +48,39 @@ defmodule Cafex.Consumer.LoadBalancer do
 
       iex> rebalance [{:a, []}, {:b, [0, 1, 2, 3, 4]}], 5
       [{:a, [3, 4]}, {:b, [0, 1, 2]}]
+
+  More details see the source of this module or test.
   """
   @spec balance([{atom, [integer]}], integer) :: [{atom, [integer]}]
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
-    count     = round(partitions / length(consumers))
+    count     = Float.floor(partitions / length(consumers)) |> trunc
+    remainder = rem(partitions, length(consumers))
     all       = Enum.into(0..(partitions - 1), HashSet.new)
-
-    {layout, overflow} =
-    Enum.reduce layout, {[], []}, fn {w, p}, {l, n} ->
-      {keep, overflow} = Enum.split(p, count)
-      {[{w, keep}|l], n ++ overflow}
-    end
-    layout = Enum.sort(layout)
 
     assigned  = layout |> Keyword.values
                        |> List.flatten
                        |> Enum.into(HashSet.new)
     not_assigned = all |> HashSet.difference(assigned)
-                       |> Enum.into(overflow)
                        |> Enum.uniq
                        |> Enum.sort
 
-    {new_layout, []} =
-    Enum.reduce layout, {[], not_assigned}, fn {w, p}, {acc, not_assigned} ->
-      {x, y} = assign(p, count, not_assigned)
-      {[{w, x}|acc], y}
-    end
+    {new_layout, [], 0} =
+    layout |> Enum.sort(fn {_c1, p1}, {_c2, p2} ->
+                length(p1) >= length(p2)
+              end)
+           |> Enum.reduce({[], not_assigned, remainder}, fn
+             {consumer, partitions}, {layout, not_assigned, remainder} when remainder > 0 ->
+               {keep, rest} = assign(partitions, count + 1, not_assigned)
+               {[{consumer, keep}|layout], rest, remainder - 1}
 
-    Enum.reverse(new_layout)
+             {consumer, partitions}, {layout, not_assigned, remainder} when remainder == 0 ->
+               {keep, rest} = assign(partitions, count, not_assigned)
+               {[{consumer, keep}|layout], rest, remainder}
+
+           end)
+
+    Enum.sort(new_layout)
   end
 
   defp assign(current, count, not_assigned) when length(current) > count do
