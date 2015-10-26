@@ -141,13 +141,13 @@ defmodule Cafex.Consumer.Manager do
     state = case reason do
       {:bad_return_value, :econnrefused} ->
         Logger.info fn -> "The connection of #{group} consumer worker refused, need to reload metadata..." end
-        state = reload_metadata state
+        reload_metadata state
       :not_leader_for_partition ->
         Logger.info fn -> "Topic #{group} leader for parthtions changed, reload metadata..." end
-        state = reload_metadata state
+        reload_metadata state
       :closed ->
         Logger.info fn -> "The connection of #{group} consumer worker closed, need to reload metadata..." end
-        state = reload_metadata state
+        reload_metadata state
       _ ->
         IO.puts "process exit #{inspect pid}, reason: #{inspect reason}, #{inspect state.workers}"
         state
