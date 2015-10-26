@@ -169,17 +169,22 @@ defmodule Cafex.Consumer.Worker do
                                          hwm_offset: offset} = state) do
     case response do
       {:ok, %{topics: [{^topic, [%{error: :no_error, messages: messages, hwm_offset: hwm_offset}]}]}} ->
-        %{state | buffer: buffer ++ messages, hwm_offset: hwm_offset}
+        {:ok, %{state | buffer: buffer ++ messages, hwm_offset: hwm_offset}}
+      {:ok, %{topics: [{^topic, [%{error: :not_leader_for_partition = reason}]}]}} ->
+        Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
+        {:error, :not_leader_for_partition, state}
       {:ok, %{topics: [{^topic, [%{error: reason}]}]}} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
-        state
+        {:ok, state}
       {:error, reason} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
-        state
+        {:ok, state}
     end
     |> case do
-      %{buffer: []} = state -> {:next_state, :consuming, state, 1000}
-      state -> {:next_state, :consuming, state, 0}
+      {:ok, %{buffer: []} = state} -> {:next_state, :consuming, state, 1000}
+      {:ok, state} -> {:next_state, :consuming, state, 0}
+      {:error, reason, state} ->
+        {:stop, reason, state}
     end
   end
 

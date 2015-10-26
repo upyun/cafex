@@ -137,8 +137,21 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
-  def handle_info({:EXIT, pid, reason}, state) do
-    IO.puts "process exit #{inspect pid}, reason: #{inspect reason}, #{inspect state.workers}"
+  def handle_info({:EXIT, pid, reason}, %{group_name: group} = state) do
+    state = case reason do
+      {:bad_return_value, :econnrefused} ->
+        Logger.info fn -> "The connection of #{group} consumer worker refused, need to reload metadata..." end
+        state = reload_metadata state
+      :not_leader_for_partition ->
+        Logger.info fn -> "Topic #{group} leader for parthtions changed, reload metadata..." end
+        state = reload_metadata state
+      :closed ->
+        Logger.info fn -> "The connection of #{group} consumer worker closed, need to reload metadata..." end
+        state = reload_metadata state
+      _ ->
+        IO.puts "process exit #{inspect pid}, reason: #{inspect reason}, #{inspect state.workers}"
+        state
+    end
     {:noreply, state}
   end
 
@@ -160,6 +173,12 @@ defmodule Cafex.Consumer.Manager do
   #  Internal functions
   # ===================================================================
 
+  defp reload_metadata(state) do
+    state |> load_metadata
+          |> leader_election
+          |> load_balance
+          |> restart_workers
+  end
   defp load_metadata(%{topic_pid: topic_pid} = state) do
     metadata = Cafex.Topic.Server.metadata topic_pid
     %{state | topic_name: metadata.name,

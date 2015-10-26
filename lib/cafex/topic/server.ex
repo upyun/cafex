@@ -83,12 +83,16 @@ defmodule Cafex.Topic.Server do
     {:noreply, state}
   end
 
-  def handle_info({:EXIT, _pid, :normal}, state) do
-    {:noreply, %{state | conn: nil}}
-  end
   def handle_info({:EXIT, conn, reason}, %{conn: conn} = state) do
     Logger.error "Connection closed unexpectedly: #{inspect reason}"
     {:noreply, %{state | conn: nil}}
+  end
+  def handle_info({:EXIT, _pid, :normal}, state) do
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, _pid, reason}, state) do
+    Logger.error "Connection closed unexpectedly: #{inspect reason}"
+    {:noreply, state}
   end
 
   def terminate(_reason, state) do
@@ -130,7 +134,7 @@ defmodule Cafex.Topic.Server do
         schedule_close_conn(%{state | conn: pid})
       {:error, reason} ->
         Logger.warn "Failed to open connection to broker: #{host}:#{port}, reason: #{inspect reason}"
-        open_conn(%{state | feed_brokers: rest,
+        open_conn(%{state | conn: nil, feed_brokers: rest,
                             dead_brokers: [{host, port}|deads]})
     end
   end
