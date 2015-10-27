@@ -32,6 +32,8 @@ defmodule Cafex.Consumer.Manager do
               leaders: nil,
               partitions: nil,
               workers: HashDict.new,
+              r_workers: HashDict.new,
+              trefs: HashDict.new,
               coordinator: nil,
               leader: {false, nil}
   end
@@ -126,6 +128,12 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
+  def handle_info({:timeout, _tref, {:restart_worker, partition}}, %{trefs: trefs} = state) do
+    state = %{state | trefs: HashDict.delete(trefs, partition)}
+    state = start_worker(partition, state)
+    {:noreply, state}
+  end
+
   def handle_info({_, path, :node_data_changed}, state) do
     Logger.info fn -> "#{path} partition layout changed, restart_workers" end
     state = restart_workers(state)
@@ -136,21 +144,43 @@ defmodule Cafex.Consumer.Manager do
     state = load_balance(state)
     {:noreply, state}
   end
+  def handle_info({_, path, :node_deleted}, state) do
+    # Should not happen, if it happens, maybe zookeeper session expired
+    Logger.error fn -> "#{path} node deleted, stop server" end
+    {:stop, :node_deleted, %{state| zk_node: nil}}
+  end
 
-  def handle_info({:EXIT, pid, reason}, %{group_name: group} = state) do
-    state = case reason do
-      {:bad_return_value, :econnrefused} ->
-        Logger.info fn -> "The connection of #{group} consumer worker refused, need to reload metadata..." end
-        reload_metadata state
-      :not_leader_for_partition ->
-        Logger.info fn -> "Topic #{group} leader for parthtions changed, reload metadata..." end
-        reload_metadata state
-      :closed ->
-        Logger.info fn -> "The connection of #{group} consumer worker closed, need to reload metadata..." end
-        reload_metadata state
-      _ ->
-        IO.puts "process exit #{inspect pid}, reason: #{inspect reason}, #{inspect state.workers}"
-        state
+  def handle_info({:EXIT, _pid, :normal}, state) do
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, pid, reason}, %{coordinator: pid} = state) do
+    Logger.warn fn -> "Coordinator exit with the reason #{inspect reason}" end
+    state = start_offset_coordinator(state)
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, pid, :not_leader_for_partition}, state) do
+    Logger.warn fn -> "Worker stopped due to not_leader_for_partition, reload leader and restart it" end
+    state = load_metadata(state)
+    state = try_restart_worker(pid, state)
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, pid, :lock_timeout}, %{r_workers: r_workers, trefs: trefs} = state) do
+    state = case HashDict.get(r_workers, pid) do
+      nil -> state
+      partition ->
+        tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
+        %{state | trefs: HashDict.put(trefs, partition, tref)}
+    end
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, pid, reason}, %{r_workers: r_workers, trefs: trefs} = state) do
+    Logger.info fn -> "Worker #{inspect pid} stopped with the reason: #{inspect reason}, try to restart it" end
+    state = case HashDict.get(r_workers, pid) do
+      nil -> state
+      partition ->
+        state = load_metadata(state)
+        tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
+        %{state | trefs: HashDict.put(trefs, partition, tref)}
     end
     {:noreply, state}
   end
@@ -173,12 +203,6 @@ defmodule Cafex.Consumer.Manager do
   #  Internal functions
   # ===================================================================
 
-  defp reload_metadata(state) do
-    state |> load_metadata
-          |> leader_election
-          |> load_balance
-          |> restart_workers
-  end
   defp load_metadata(%{topic_pid: topic_pid} = state) do
     metadata = Cafex.Topic.Server.metadata topic_pid
     %{state | topic_name: metadata.name,
@@ -290,28 +314,37 @@ defmodule Cafex.Consumer.Manager do
     end
   end
 
-  defp start_worker(partition, %{workers: workers} = state) do
+  defp try_restart_worker(pid, %{workers: workers, r_workers: r_workers} = state) do
+    case HashDict.get(r_workers, pid) do
+      nil -> state
+      partition ->
+        state = %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)}
+        start_worker partition, state
+    end
+  end
+
+  defp start_worker(partition, %{workers: workers, r_workers: r_workers} = state) do
     case HashDict.get(workers, partition) do
       nil ->
         {:ok, pid} = do_start_worker(partition, state)
-        %{state | workers: HashDict.put(workers, partition, pid)}
+        %{state | workers: HashDict.put(workers, partition, pid), r_workers: HashDict.put(r_workers, pid, partition)}
       pid ->
         case Process.alive?(pid) do
           false ->
-            start_worker(partition, %{state | workers: HashDict.delete(workers, partition)})
+            start_worker(partition, %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)})
           true ->
             state
         end
     end
   end
 
-  defp stop_worker(partition, %{workers: workers} = state) do
+  defp stop_worker(partition, %{workers: workers, r_workers: r_workers} = state) do
     case HashDict.get(workers, partition) do
       nil ->
         state
       pid ->
-        Worker.stop(pid)
-        %{state | workers: HashDict.delete(workers, partition)}
+        if Process.alive?(pid), do: Worker.stop(pid)
+        %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)}
     end
   end
 
@@ -330,9 +363,9 @@ defmodule Cafex.Consumer.Manager do
 
   defp stop_workers(%{workers: workers} = state) do
     Enum.each workers, fn {_, pid} ->
-      Worker.stop pid
+      if Process.alive?(pid), do: Worker.stop(pid)
     end
-    %{state | workers: HashDict.new}
+    %{state | workers: HashDict.new, r_workers: HashDict.new}
   end
 
   defp get_offset(topic_pid, partition) when is_pid(topic_pid) and is_integer(partition) do

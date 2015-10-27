@@ -43,6 +43,7 @@ defmodule Cafex.Consumer.Worker do
   # ===================================================================
 
   def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path]) do
+    Process.flag(:trap_exit, true)
     state = %State{topic: topic,
                    group: group,
                    partition: partition,
@@ -122,26 +123,37 @@ defmodule Cafex.Consumer.Worker do
 		{:next_state, state_name, state_data}
 	end
 
-	@doc false
-	def terminate(_reason, _state_name, %{handler: handler,
-                                        handler_data: data} = state_data) do
+  def handle_info({:EXIT, pid, reason}, state_name, %{conn: pid} = state) do
+    Logger.warn "Connection exit unexpectedly, state_name: #{inspect state_name} reason: #{inspect reason}"
+    {:stop, reason, state}
+  end
+  def handle_info({:EXIT, _pid, reason}, _state_name, state) do
+    Logger.warn "Worker received :EXIT, reason: #{inspect reason} state_name: #{inspect _state_name} #{inspect state}"
+    {:stop, reason, state}
+  end
+
+  @doc false
+  def terminate(_reason, _state_name, %{handler: handler,
+                                      handler_data: data} = state_data) do
     close_connection(state_data)
     release_lock(state_data)
     if data, do: handler.terminate(data)
-		:ok
-	end
+    :ok
+  end
 
-	@doc false
-	def code_change(_old, state_name, state_data, _extra) do
-		{:ok, state_name, state_data}
-	end
+  @doc false
+  def code_change(_old, state_name, state_data, _extra) do
+      {:ok, state_name, state_data}
+  end
 
   # ===================================================================
   #  Internal functions
   # ===================================================================
 
   defp close_connection(%{conn: nil}), do: :ok
-  defp close_connection(%{conn: pid}), do: Connection.close(pid)
+  defp close_connection(%{conn: pid}) do
+    if Process.alive?(pid), do: Connection.close(pid)
+  end
 
   defp release_lock(%{lock: {false, _}}), do: :ok
   defp release_lock(%{lock: {true, lock}, zk_pid: zk}), do: Lock.release(zk, lock)
