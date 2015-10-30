@@ -1,6 +1,11 @@
 defmodule Cafex.Protocol.OffsetCommit do
   @behaviour Cafex.Protocol.Decoder
 
+  @moduledoc """
+  The offset commit request uses v0 (supported in 0.8.1 or later).
+  To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
+  """
+
   defmodule Request do
     defstruct consumer_group: "cafex",
               topics: []
