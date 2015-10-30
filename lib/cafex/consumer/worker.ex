@@ -146,7 +146,9 @@ defmodule Cafex.Consumer.Worker do
   end
 
   defp release_lock(%{lock: {false, _}}), do: :ok
-  defp release_lock(%{lock: {true, lock}, zk_pid: zk}), do: Lock.release(zk, lock)
+  defp release_lock(%{lock: {true, lock}, zk_pid: zk}) do
+    if Process.alive?(zk), do: Lock.release(zk, lock)
+  end
 
   # TODO configurable
   @wait_time 100

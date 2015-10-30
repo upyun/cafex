@@ -28,4 +28,11 @@ defmodule Cafex do
   def start_consumer(name, topic_pid, opts \\ []) do
     Cafex.Consumer.Supervisor.start_consumer(name, topic_pid, opts)
   end
+
+  def offline_consumer(name) when is_atom(name) do
+    name |> Process.whereis |> offline_consumer
+  end
+  def offline_consumer(pid) when is_pid(pid) do
+    Cafex.Consumer.Manager.offline pid
+  end
 end
