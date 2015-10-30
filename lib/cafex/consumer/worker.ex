@@ -43,7 +43,6 @@ defmodule Cafex.Consumer.Worker do
   # ===================================================================
 
   def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path]) do
-    Process.flag(:trap_exit, true)
     state = %State{topic: topic,
                    group: group,
                    partition: partition,
@@ -122,15 +121,6 @@ defmodule Cafex.Consumer.Worker do
     :gen_fsm.send_event self, {:lock_again, lock}
 		{:next_state, state_name, state_data}
 	end
-
-  def handle_info({:EXIT, pid, reason}, state_name, %{conn: pid} = state) do
-    Logger.warn "Connection exit unexpectedly, state_name: #{inspect state_name} reason: #{inspect reason}"
-    {:stop, reason, state}
-  end
-  def handle_info({:EXIT, _pid, reason}, _state_name, state) do
-    Logger.warn "Worker received :EXIT, reason: #{inspect reason} state_name: #{inspect _state_name} #{inspect state}"
-    {:stop, reason, state}
-  end
 
   @doc false
   def terminate(_reason, _state_name, %{handler: handler,
