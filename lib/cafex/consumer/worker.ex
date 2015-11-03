@@ -4,6 +4,7 @@ defmodule Cafex.Consumer.Worker do
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct topic: nil,
               group: nil,
               partition: nil,

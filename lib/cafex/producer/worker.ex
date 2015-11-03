@@ -2,6 +2,7 @@ defmodule Cafex.Producer.Worker do
   use GenServer
 
   defmodule State do
+    @moduledoc false
     defstruct broker: nil,
               topic: nil,
               topic_server: nil,

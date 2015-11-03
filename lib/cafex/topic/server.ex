@@ -6,6 +6,7 @@ defmodule Cafex.Topic.Server do
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct name: nil,
               metadata: nil,
               feed_brokers: [],

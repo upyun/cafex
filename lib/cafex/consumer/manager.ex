@@ -20,6 +20,7 @@ defmodule Cafex.Consumer.Manager do
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct group_name: nil,
               topic_pid: nil,
               zk_servers: nil,

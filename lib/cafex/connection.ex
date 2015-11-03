@@ -4,6 +4,7 @@ defmodule Cafex.Connection do
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct client_id: nil,
               correlation_id: 0,
               host: nil,
