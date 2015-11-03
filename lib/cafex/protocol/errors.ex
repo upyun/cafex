@@ -1,4 +1,10 @@
 defmodule Cafex.Protocol.Errors do
+  @moduledoc """
+  Use atom to represent the numeric error codes.
+
+  For more details about errors, read [A Guide To The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-ErrorCodes)
+  """
+
   @error_map %{
      0 => :no_error,
      1 => :offset_out_of_range,
@@ -17,6 +23,22 @@ defmodule Cafex.Protocol.Errors do
     15 => :consumer_coordinator_not_available,
     16 => :not_coordinator_for_consumer
   }
+
+  # Generate
+  # @type t :: :no_error
+  #          | :offset_out_of_range
+  #          | ...
+
+  @type t :: unquote(Map.values(@error_map) ++ [:unknown_error]
+             |> List.foldr([], fn
+               v, [] ->
+                 v
+               v, acc ->
+                 {:|, [], [v, acc]}
+             end))
+
+  @spec error(error_code :: integer) :: t
+  def error(error_code)
 
   for {k, v} <- @error_map do
     def error(unquote(k)), do: unquote(v)

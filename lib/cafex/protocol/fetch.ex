@@ -22,7 +22,7 @@ defmodule Cafex.Protocol.Fetch do
     defstruct topics: []
     @type t :: %Response{topics: [{topic :: String.t,
                                    partitions :: [{partition :: integer,
-                                                   error :: atom,
+                                                   error :: Cafex.Protocol.Errors.t,
                                                    hwm_offset :: integer,
                                                    messages :: [Message.t]}]}]}
   end

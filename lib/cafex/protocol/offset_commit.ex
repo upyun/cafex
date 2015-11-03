@@ -22,7 +22,7 @@ defmodule Cafex.Protocol.OffsetCommit do
 
     @type t :: %Response{ topics: [{topic_name :: String.t,
                                     partitions :: [{partition :: integer,
-                                                    error_code :: integer}]}] }
+                                                        error :: Cafex.Protocol.Errors.t}]}] }
   end
 
   defimpl Cafex.Protocol.Request, for: Request do

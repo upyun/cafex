@@ -16,7 +16,7 @@ defmodule Cafex.Protocol.ConsumerMetadata do
     @type t :: %Response{ coordinator_id: integer,
                           coordinator_host: binary,
                           coordinator_port: 0..65535,
-                          error: atom }
+                          error: Cafex.Protocol.Errors.t }
   end
 
   defimpl Cafex.Protocol.Request, for: Request do

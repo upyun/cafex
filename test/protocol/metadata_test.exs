@@ -31,8 +31,8 @@ defmodule Cafex.Protocol.Metadata.Test do
     expected_response = %Response{
       brokers: [%{host: "foo", node_id: 0, port: 9092}],
       topics: [
-        %{name: "bar", error_code: 0, partitions: [
-          %{error_code: 0, isrs: [0], leader: 0, partition_id: 0, replicas: []}
+        %{name: "bar", error: :no_error, partitions: [
+          %{error: :no_error, isrs: [0], leader: 0, partition_id: 0, replicas: []}
         ]}
       ]
     }

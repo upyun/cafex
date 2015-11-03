@@ -33,7 +33,7 @@ defmodule Cafex.Protocol.Produce.Test do
 
   test "decode_response correctly parses a valid response with single topic and partition" do
     response = << 1 :: 32, 3 :: 16, "bar" :: binary, 1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64 >>
-    expected_response = [{"bar", [%{error_code: 0, offset: 10, partition: 0}]}]
+    expected_response = [{"bar", [%{error: :no_error, offset: 10, partition: 0}]}]
     assert expected_response == Produce.decode(response)
   end
 
@@ -45,10 +45,10 @@ defmodule Cafex.Protocol.Produce.Test do
                   3 :: 16, "baz" :: binary,
                     2 :: 32, 0 :: 32, 0 :: 16, 30 :: 64,
                              1 :: 32, 0 :: 16, 40 :: 64 >>
-    expected_response = [{"bar", [%{error_code: 0, offset: 10, partition: 0},
-                                  %{error_code: 0, offset: 20, partition: 1}]},
-                         {"baz", [%{error_code: 0, offset: 30, partition: 0},
-                                  %{error_code: 0, offset: 40, partition: 1}]}]
+    expected_response = [{"bar", [%{error: :no_error, offset: 10, partition: 0},
+                                  %{error: :no_error, offset: 20, partition: 1}]},
+                         {"baz", [%{error: :no_error, offset: 30, partition: 0},
+                                  %{error: :no_error, offset: 40, partition: 1}]}]
     assert expected_response == Produce.decode(response)
   end
 end

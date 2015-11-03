@@ -86,10 +86,10 @@ defmodule Cafex.Producer.Worker do
                         messages: [message] }
 
     case Connection.request(conn, request, Produce) do
-      {:ok, [{^topic, [%{error_code: 0, offset: offset, partition: partition}]}]} ->
+      {:ok, [{^topic, [%{error: :no_error, offset: offset, partition: partition}]}]} ->
         {:reply, {:ok, partition, offset}, state}
-      {:ok, [{^topic, [%{error_code: code}]}]} ->
-        {:reply, {:error, Cafex.Protocol.Errors.error(code)}, state}
+      {:ok, [{^topic, [%{error: error}]}]} ->
+        {:reply, {:error, error}, state}
       {:error, reason} = err ->
         {:stop, reason, err, state}
     end

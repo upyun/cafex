@@ -14,9 +14,9 @@ defmodule Cafex.Protocol.OffsetFetch do
     defstruct topics: []
 
     @type t :: %Response{topics: [{partition :: integer,
-                                   offset :: integer,
-                                   metadata :: String.t,
-                                   error:: atom}]}
+                                      offset :: integer,
+                                    metadata :: String.t,
+                                      error  :: Cafex.Protocol.Errors.t}]}
   end
 
   defimpl Cafex.Protocol.Request, for: Request do

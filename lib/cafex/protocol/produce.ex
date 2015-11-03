@@ -63,7 +63,7 @@ defmodule Cafex.Protocol.Produce do
 
   defp parse_partition(<< partition :: 32-signed, error_code :: 16-signed, offset :: 64, rest :: binary >>) do
     {%{ partition: partition,
-        error_code: error_code,
+        error: Cafex.Protocol.Errors.error(error_code),
         offset: offset}, rest}
   end
 end

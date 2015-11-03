@@ -17,7 +17,7 @@ defmodule Cafex.Protocol.Offset do
 
     @type t :: %Response{ offsets: [{topic :: String.t,
                                      partitions :: [{partition :: integer,
-                                                     error :: atom,
+                                                     error :: Cafex.Protocol.Errors.t,
                                                      offsets :: [integer]}]}]}
   end
 

@@ -9,6 +9,17 @@ defmodule Cafex.Protocol.Metadata do
 
   defmodule Response do
     defstruct brokers: [], topics: []
+
+    @type t :: %Response{brokers: [%{node_id: integer,
+                                     host: binary,
+                                     port: 0..65535}],
+                                     topics: [%{error: Cafex.Protocol.Errors.t,
+                                                name: binary,
+                                                partitions: [%{error: Cafex.Protocol.Errors.t,
+                                                               partition_id: integer,
+                                                               leader: integer,
+                                                               replicas: [integer],
+                                                               isrs: [integer]}]}]}
   end
 
   defimpl Cafex.Protocol.Request, for: Request do
@@ -36,14 +47,14 @@ defmodule Cafex.Protocol.Metadata do
   defp parse_topic(<< error_code :: 16-signed, topic_len :: 16-signed,
                       topic :: size(topic_len)-binary, rest :: binary >>) do
     {partitions, rest} = Cafex.Protocol.decode_array(rest, &parse_partition/1)
-    {%{error_code: error_code, name: topic, partitions: partitions}, rest}
+    {%{error: Cafex.Protocol.Errors.error(error_code), name: topic, partitions: partitions}, rest}
   end
 
   defp parse_partition(<< error_code :: 16-signed, partition_id :: 32-signed,
                           leader :: 32-signed, rest :: binary >>) do
     {replicas, rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
     {isrs,     rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
-    {%{error_code: error_code,
+    {%{error: Cafex.Protocol.Errors.error(error_code),
        partition_id: partition_id,
        leader: leader,
        replicas: replicas,
