@@ -153,10 +153,10 @@ defmodule Cafex.Consumer.Manager do
   end
 
   def handle_info({:leader_election, seq}, %{leader: {_, seq}} = state) do
-    Logger.warn "I am leader now"
+    Logger.warn "leader_election"
     state = state |> leader_election
                   |> load_balance
-                  |> restart_workers
+                  # |> restart_workers
     {:noreply, state}
   end
 
@@ -166,24 +166,42 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
+  # handle zk messages
+  # handle erlzk connection changes, as erlzk monitor
+  def handle_info({:disconnected, _host, _port}, state) do
+    Logger.warn "erlzk disconnect #{inspect _host}:#{inspect _port}"
+    {:noreply, state}
+  end
+  def handle_info({:connected, _host, _port}, state) do
+    Logger.warn "erlzk connected#{inspect _host}:#{inspect _port}"
+    {:noreply, state}
+  end
+  def handle_info({:expired, _host, _port}, state) do
+    Logger.warn "erlzk expired#{inspect _host}:#{inspect _port}"
+    {:noreply, state}
+  end
+
+  # handle zk watcher events
   def handle_info({:get_children, path, :node_children_changed}, %{group_name: group, zk_online_path: path} = state) do
     # Online nodes changed
     Logger.info fn -> "#{group} consumers changed, rebalancing ..." end
     state = load_balance(state)
     {:noreply, state}
   end
-  def handle_info({_, path, :node_data_changed}, %{zk_balance_node: path} = state) do
+  def handle_info({_op, path, :node_created}, %{zk_balance_node: path} = state) do
     # balance_node created, start workers
+    Logger.info fn -> "#{inspect _op} #{path} partition node created, restart_workers" end
     state = restart_workers(state)
     {:noreply, state}
   end
-  def handle_info({_, path, :node_created}, %{zk_balance_node: path} = state) do
+  def handle_info({_op, path, :node_data_changed}, %{zk_balance_node: path} = state) do
     # balance_node created, start workers
+    Logger.info fn -> "#{inspect _op} #{path} partition layout changed, restart_workers" end
     state = restart_workers(state)
     {:noreply, state}
   end
   def handle_info({:get_data, path, :node_data_changed}, %{zk_balance_node: path} = state) do
-    Logger.info fn -> "#{path} partition layout changed, restart_workers" end
+    Logger.info fn -> ":get_data #{path} partition layout changed, restart_workers" end
     state = restart_workers(state)
     {:noreply, state}
   end
@@ -199,6 +217,7 @@ defmodule Cafex.Consumer.Manager do
     {:stop, :node_deleted, state}
   end
 
+  # handle linked process EXIT
   def handle_info({:EXIT, _pid, :normal}, state) do
     {:noreply, state}
   end
@@ -235,8 +254,6 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
-  # TODO handle zk messages
-  # TODO handle linked process EXIT
   # TODO handle worker lock timeout
 
   def terminate(_reason, state) do
@@ -265,7 +282,7 @@ defmodule Cafex.Consumer.Manager do
                     topic_name: topic_name,
                     zk_servers: zk_servers,
                     zk_path: zk_path} = state) do
-    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [])
+    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [monitor: self])
     path = Path.join [zk_path, topic_name, group_name]
     online_path = Path.join [path, "consumers", "online"]
     offline_path = Path.join [path, "consumers", "offline"]
@@ -328,6 +345,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp leader_resign(%{leader: {true, seq}, zk_pid: pid} = state) do
+    Logger.info "leader resign #{inspect seq}"
     :erlzk.delete(pid, seq)
     %{state | leader: {false, nil}}
   end
@@ -339,7 +357,7 @@ defmodule Cafex.Consumer.Manager do
               zk_online_path: online_path,
              zk_offline_path: offline_path,
                   partitions: partitions} = state) do
-    {consumers, should_delete} = x = zk_get_all_consumers(pid, balance_path, online_path, offline_path)
+    {consumers, should_delete} = zk_get_all_consumers(pid, balance_path, online_path, offline_path)
 
     Enum.each(should_delete, fn p ->
       :erlzk.delete(pid, Path.join(balance_path, p))
