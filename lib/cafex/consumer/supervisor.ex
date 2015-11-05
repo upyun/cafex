@@ -11,7 +11,7 @@ defmodule Cafex.Consumer.Supervisor do
 
   def init([]) do
     children = [
-      worker(Cafex.Consumer.Manager, [], restart: :permanent,
+      worker(Cafex.Consumer.Manager, [], restart: :transient,
                                         shutdown: 2000)
     ]
     supervise children, strategy: :simple_one_for_one,

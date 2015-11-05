@@ -4,15 +4,24 @@ defmodule Cafex.Consumer.Manager do
 
   ## zookeeper structure
 
-  /cafex
-   |-- topic
-   |  |-- group_name
-   |  |  |-- leader
-   |  |  |-- cosnumers
-   |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]
-   |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]
-   |  |  |-- locks
 
+  ```
+    /cafex
+     |-- topic
+     |  |-- group_name
+     |  |  |-- leader
+     |  |  |-- consumers
+     |  |  |  |-- balance
+     |  |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]     # persistent
+     |  |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]     # persistent
+     |  |  |  |  |-- cafex@192.168.0.3       - [8,9,10,11]   # persistent
+     |  |  |  |-- online
+     |  |  |  |  |-- cafex@192.168.0.1                       # ephemeral
+     |  |  |  |  |-- cafex@192.168.0.2                       # ephemeral
+     |  |  |  |-- offline
+     |  |  |  |  |-- cafex@192.168.0.3                       # persistent
+     |  |  |-- locks
+  ```
   """
 
   use GenServer
@@ -25,8 +34,12 @@ defmodule Cafex.Consumer.Manager do
               topic_pid: nil,
               zk_servers: nil,
               zk_path: nil,
+              zk_online_path: nil,
+              zk_offline_path: nil,
+              zk_balance_path: nil,
               zk_pid: nil,
-              zk_node: nil,
+              zk_online_node: nil,
+              zk_balance_node: nil,
               handler: nil,
               topic_name: nil,
               brokers: nil,
@@ -52,6 +65,10 @@ defmodule Cafex.Consumer.Manager do
 
   def start_link(name, topic_pid, opts \\ []) do
     GenServer.start_link __MODULE__, [name, topic_pid, opts], name: name
+  end
+
+  def offline(pid) do
+    GenServer.cast pid, :offline
   end
 
   def offset_commit(pid, partition, offset, metadata \\ "") do
@@ -122,10 +139,25 @@ defmodule Cafex.Consumer.Manager do
     end
   end
 
+  def handle_cast(:offline, %{zk_pid: pid, zk_offline_path: offline_path} = state) do
+    node_name = Atom.to_string(node)
+    name = Path.join(offline_path, node_name)
+    case :erlzk.create(pid, name) do
+      {:ok, _} ->
+        Logger.info "I am going to offline"
+        {:stop, :normal, state}
+      _ ->
+        Logger.warn "Failed to offline"
+        # TODO
+        {:noreply, state}
+    end
+  end
+
   def handle_info({:leader_election, seq}, %{leader: {_, seq}} = state) do
+    Logger.warn "leader_election"
     state = state |> leader_election
                   |> load_balance
-                  |> restart_workers
+                  # |> restart_workers
     {:noreply, state}
   end
 
@@ -135,22 +167,58 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
-  def handle_info({_, path, :node_data_changed}, state) do
-    Logger.info fn -> "#{path} partition layout changed, restart_workers" end
-    state = restart_workers(state)
+  # handle zk messages
+  # handle erlzk connection changes, as erlzk monitor
+  def handle_info({:disconnected, _host, _port}, state) do
+    Logger.warn "erlzk disconnect #{inspect _host}:#{inspect _port}"
     {:noreply, state}
   end
-  def handle_info({_, _path, :node_children_changed}, %{group_name: group} = state) do
+  def handle_info({:connected, _host, _port}, state) do
+    Logger.warn "erlzk connected#{inspect _host}:#{inspect _port}"
+    {:noreply, state}
+  end
+  def handle_info({:expired, _host, _port}, state) do
+    Logger.warn "erlzk expired#{inspect _host}:#{inspect _port}"
+    {:noreply, state}
+  end
+
+  # handle zk watcher events
+  def handle_info({:get_children, path, :node_children_changed}, %{group_name: group, zk_online_path: path} = state) do
+    # Online nodes changed
     Logger.info fn -> "#{group} consumers changed, rebalancing ..." end
     state = load_balance(state)
     {:noreply, state}
   end
-  def handle_info({_, path, :node_deleted}, state) do
+  def handle_info({_op, path, :node_created}, %{zk_balance_node: path} = state) do
+    # balance_node created, start workers
+    Logger.info fn -> "#{inspect _op} #{path} partition node created, restart_workers" end
+    state = restart_workers(state)
+    {:noreply, state}
+  end
+  def handle_info({_op, path, :node_data_changed}, %{zk_balance_node: path} = state) do
+    # balance_node created, start workers
+    Logger.info fn -> "#{inspect _op} #{path} partition layout changed, restart_workers" end
+    state = restart_workers(state)
+    {:noreply, state}
+  end
+  def handle_info({:get_data, path, :node_data_changed}, %{zk_balance_node: path} = state) do
+    Logger.info fn -> ":get_data #{path} partition layout changed, restart_workers" end
+    state = restart_workers(state)
+    {:noreply, state}
+  end
+  def handle_info({_, path, :node_deleted}, %{zk_online_node: path} = state) do
     # Should not happen, if it happens, maybe zookeeper session expired
-    Logger.error fn -> "#{path} node deleted, stop server" end
-    {:stop, :node_deleted, %{state| zk_node: nil}}
+    Logger.warn fn -> "#{path} node deleted" end
+    state = zk_register state
+    {:noreply, state}
+  end
+  def handle_info({_, path, :node_deleted}, %{zk_balance_node: path} = state) do
+    # Should not happen, if it happens, maybe zookeeper session expired
+    # TODO
+    {:stop, :node_deleted, state}
   end
 
+  # handle linked process EXIT
   def handle_info({:EXIT, _pid, :normal}, state) do
     {:noreply, state}
   end
@@ -166,6 +234,7 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
   def handle_info({:EXIT, pid, :lock_timeout}, %{r_workers: r_workers, trefs: trefs} = state) do
+    # worker lock_timeout, wait for sometimes and then restart it
     state = case HashDict.get(r_workers, pid) do
       nil -> state
       partition ->
@@ -186,15 +255,13 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
 
-  # TODO handle zk messages
-  # TODO handle linked process EXIT
   # TODO handle worker lock timeout
 
   def terminate(_reason, state) do
     state |> leader_resign
           |> zk_unregister
-          |> zk_close
           |> stop_workers
+          |> zk_close   # if zk close before wokers stopped, workers cannot release lock
           |> stop_offset_coordinator
     :ok
   end
@@ -216,9 +283,16 @@ defmodule Cafex.Consumer.Manager do
                     topic_name: topic_name,
                     zk_servers: zk_servers,
                     zk_path: zk_path} = state) do
-    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [])
+    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [monitor: self])
     path = Path.join [zk_path, topic_name, group_name]
-    %{state | zk_pid: pid, zk_path: path}
+    online_path = Path.join [path, "consumers", "online"]
+    offline_path = Path.join [path, "consumers", "offline"]
+    balance_path = Path.join [path, "consumers", "balance"]
+    %{state |   zk_pid: pid,
+               zk_path: path,
+       zk_balance_path: balance_path,
+        zk_online_path: online_path,
+       zk_offline_path: offline_path}
   end
 
   defp zk_close(%{zk_pid: nil} = state), do: state
@@ -227,23 +301,38 @@ defmodule Cafex.Consumer.Manager do
     %{state | zk_pid: nil}
   end
 
-  defp zk_register(%{zk_pid: pid, zk_path: zk_path} = state) do
-    path = Path.join(zk_path, "consumers")
-    name = Path.join(path, Atom.to_string(node))
-    :ok = Cafex.ZK.Util.create_nodes(pid, path)
+  defp zk_register(%{zk_pid: pid,
+            zk_balance_path: balance_path,
+             zk_online_path: online_path,
+            zk_offline_path: offline_path} = state) do
+
+    node_name = Atom.to_string(node)
+    name = Path.join(online_path, node_name)
+    balance_node = Path.join(balance_path, node_name)
+    :ok = Cafex.ZK.Util.create_nodes(pid, [online_path, offline_path, balance_path])
+
+    offline_node = Path.join(offline_path, node_name)
+    case :erlzk.delete(pid, offline_node) do
+      :ok ->
+        Logger.info "I am back online"
+      _ ->
+        # TODO
+        :ok
+    end
+
     case :erlzk.create(pid, name, :ephemeral) do
       {:ok, _} ->
-        %{state | zk_node: name}
+        %{state | zk_online_node: name, zk_balance_node: balance_node}
       {:error, reason} ->
         Logger.error "Failed to register consumer: #{name}, reason: #{inspect reason}"
         throw reason
     end
   end
 
-  defp zk_unregister(%{zk_node: nil} = state), do: state
-  defp zk_unregister(%{zk_node: zk_node, zk_pid: pid} = state) do
-    :erlzk.delete(pid, zk_node)
-    %{state | zk_node: nil}
+  defp zk_unregister(%{zk_online_node: nil} = state), do: state
+  defp zk_unregister(%{zk_online_node: zk_online_node, zk_pid: pid} = state) do
+    :erlzk.delete(pid, zk_online_node)
+    %{state | zk_online_node: nil}
   end
 
   defp leader_election(%{leader: {true, _}} = state), do: state
@@ -257,34 +346,70 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp leader_resign(%{leader: {true, seq}, zk_pid: pid} = state) do
+    Logger.info "leader resign #{inspect seq}"
     :erlzk.delete(pid, seq)
     %{state | leader: {false, nil}}
   end
   defp leader_resign(state), do: state
 
   defp load_balance(%{leader: {false, _}} = state), do: state
-  defp load_balance(%{zk_pid: pid, zk_path: zk_path, partitions: partitions} = state) do
-    consumers  = zk_get_consumers(pid, zk_path)
+  defp load_balance(%{zk_pid: pid,
+             zk_balance_path: balance_path,
+              zk_online_path: online_path,
+             zk_offline_path: offline_path,
+                  partitions: partitions} = state) do
+    {consumers, should_delete} = zk_get_all_consumers(pid, balance_path, online_path, offline_path)
+
+    Enum.each(should_delete, fn p ->
+      :erlzk.delete(pid, Path.join(balance_path, p))
+    end)
+
     rebalanced = Cafex.Consumer.LoadBalancer.rebalance(consumers, partitions)
     for {k, v} <- rebalanced do
       case Keyword.get(consumers, k) do
         ^v -> :ok # not changed
-        _  -> zk_set_consumer_partitions(pid, zk_path, k, v)
+        _  ->
+          zk_set_consumer_partitions(pid, balance_path, k, v)
       end
     end
     state
   end
 
-  defp zk_get_consumers(zk, path) do
-    path = Path.join(path, "consumers")
-    {:ok, children} = Cafex.ZK.Util.get_children_with_data(zk, path, self)
-    children |> Enum.map(fn {x, v} -> {String.to_atom(x), decode_partitions(v)} end)
-             |> Enum.sort
+  defp zk_get_all_consumers(zk, balance_path, online_path, offline_path) do
+    {:ok, online_children} = Cafex.ZK.Util.get_children(zk, online_path, self)
+    {:ok, offline_children} = Cafex.ZK.Util.get_children(zk, offline_path)
+    consumers = Enum.concat(online_children, offline_children) |> Enum.uniq
+    {:ok, balanced} = Cafex.ZK.Util.get_children_with_data(zk, balance_path)
+    {consumers, should_delete} = Enum.map_reduce(consumers, balanced, fn p, acc ->
+      data = decode_partitions(HashDict.get(acc, p))
+      {{String.to_atom(p), data}, HashDict.delete(acc, p)}
+    end)
+    {Enum.sort(consumers), HashDict.keys(should_delete)}
   end
 
   defp zk_set_consumer_partitions(zk, path, consumer, partitions) do
-    path = Path.join [path, "consumers", Atom.to_string(consumer)]
-    :erlzk.set_data zk, path, encode_partitions(partitions)
+    balance_node = Path.join [path, Atom.to_string(consumer)]
+    case :erlzk.exists(zk, balance_node) do
+      {:ok, _stat} ->
+        :erlzk.set_data zk, balance_node, encode_partitions(partitions)
+      {:error, :no_node} ->
+        case :erlzk.create(zk, balance_node) do
+          {:ok, _} ->
+            :erlzk.set_data zk, balance_node, encode_partitions(partitions)
+          {:error, :node_exists} ->
+            :erlzk.set_data zk, balance_node, encode_partitions(partitions)
+          {:error, :closed} ->
+            # during reconnecting
+            zk_set_consumer_partitions(zk, path, consumer, partitions)
+          error ->
+            Logger.error "Zookeeper error: #{inspect error}"
+        end
+      {:error, :closed} ->
+        # during reconnecting
+        zk_set_consumer_partitions(zk, path, consumer, partitions)
+      error ->
+        Logger.error "Zookeeper error: #{inspect error}"
+    end
   end
 
   defp decode_partitions(nil), do: []
@@ -300,18 +425,22 @@ defmodule Cafex.Consumer.Manager do
     "[#{ partitions |> Enum.map(&Integer.to_string/1) |> Enum.join(",") }]"
   end
 
-  defp restart_workers(%{zk_pid: zk, zk_node: zk_node, workers: workers} = state) do
-    {:ok, {data, _stat}} = :erlzk.get_data(zk, zk_node, self)
-    partitions = decode_partitions(data)
-    should_stop = HashDict.keys(workers) -- partitions
+  defp restart_workers(%{zk_pid: zk, zk_balance_node: balance_node, workers: workers} = state) do
+    case Cafex.ZK.Util.get_data(zk, balance_node, self) do
+      {:ok, {data, _stat}} ->
+        partitions = decode_partitions(data)
+        should_stop = HashDict.keys(workers) -- partitions
 
-    state =
-    Enum.reduce should_stop, state, fn partition, acc ->
-      stop_worker(partition, acc)
-    end
+        state =
+        Enum.reduce should_stop, state, fn partition, acc ->
+          stop_worker(partition, acc)
+        end
 
-    Enum.reduce partitions, state, fn partition, acc ->
-      start_worker(partition, acc)
+        Enum.reduce partitions, state, fn partition, acc ->
+          start_worker(partition, acc)
+        end
+      _error ->
+        state
     end
   end
 

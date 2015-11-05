@@ -3,6 +3,14 @@ defmodule Cafex.ZK.Util do
   ZooKeeper Utilities
   """
 
+  def create_nodes(_pid, []), do: :ok
+  def create_nodes( pid, [node|rest]) do
+    case create_nodes(pid, node) do
+      :ok -> create_nodes(pid, rest)
+      error -> error
+    end
+  end
+
   def create_nodes(_pid, "/"), do: :ok
   def create_nodes( pid, path) do
     path = String.rstrip(path, ?/)
@@ -20,11 +28,22 @@ defmodule Cafex.ZK.Util do
           error ->
             error
         end
+      {:error, :closed} ->
+        create_nodes(pid, path)
     end
   end
 
+  def get_children(pid, path), do: get_children(pid, path, nil)
+  def get_children(pid, path, watcher) do
+    case do_get_children(pid, path, watcher) do
+      {:ok, children} -> {:ok, Enum.map(children, &(List.to_string &1))}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def get_children_with_data(pid, path), do: get_children_with_data(pid, path, nil)
   def get_children_with_data(pid, path, watcher) do
-    case :erlzk.get_children(pid, path, watcher) do
+    case do_get_children(pid, path, watcher) do
       {:ok, children} ->
         {:ok, children |> Enum.map(fn x ->
                          x = List.to_string(x)
@@ -34,9 +53,27 @@ defmodule Cafex.ZK.Util do
                            {:error, :no_node} ->
                              {x, nil}
                          end
-                       end)}
+                       end)
+                       |> Enum.into(HashDict.new)}
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  def get_data(pid, path), do: get_data(pid, path, nil)
+  def get_data(pid, path, watcher) do
+    case do_exists(pid, path, watcher) do
+      {:ok, _stat} -> do_get_data(pid, path, watcher)
+      error -> error
+    end
+  end
+
+  defp do_get_data(pid, path, nil), do: :erlzk.get_data(pid, path)
+  defp do_get_data(pid, path, watcher), do: :erlzk.get_data(pid, path, watcher)
+
+  defp do_exists(pid, path, nil), do: :erlzk.exists(pid, path)
+  defp do_exists(pid, path, watcher), do: :erlzk.exists(pid, path, watcher)
+
+  defp do_get_children(pid, path, nil), do: :erlzk.get_children(pid, path)
+  defp do_get_children(pid, path, watcher), do: :erlzk.get_children(pid, path, watcher)
 end

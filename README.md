@@ -51,13 +51,22 @@ Consumer 启动后会在 zookeeper 上建立下面这样的建构
    |  |-- group_name
    |  |  |-- leader
    |  |  |-- consumers
-   |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]
-   |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]
+   |  |  |  |-- balance
+   |  |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]     # persistent
+   |  |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]     # persistent
+   |  |  |  |  |-- cafex@192.168.0.3       - [8,9,10,11]   # persistent
+   |  |  |  |-- online
+   |  |  |  |  |-- cafex@192.168.0.1                       # ephemeral
+   |  |  |  |  |-- cafex@192.168.0.2                       # ephemeral
+   |  |  |  |-- offline
+   |  |  |  |  |-- cafex@192.168.0.3                       # persistent
    |  |  |-- locks
 ```
 
-首先，每个 Consumer 启动后会在 consumers 节点下面注册自己（目前是用 erlang node name 作为 consumer 的 name, 所以启动时务必指定 `-name` 参数）。所有 Consumer 进程会选举出一个 Leader，只有这个 Leader 负责负载均衡，Leader 获取 consumers 下面的所有节点，然后作负载均衡，并将结果（也就是每个 consumer 负责的 partition 列表）写入各 consumer 节点。 每个 Consumer 都监听着自己的相应节点的数据变化，发生变化时启动，或者关闭相关的 partition worker。
-
+首先，每个 Consumer 启动后会在 `consumers/online` 节点下面注册自己（目前是用 erlang node name 作为 consumer 的 name, 所以启动时务必指定 `-name` 参数）。
+所有 Consumer 进程会选举出一个 Leader，只有这个 Leader 负责负载均衡。
+Leader 获取 `consumers/online` 和 `consumers/offline` 下面的所有节点，然后作负载均衡，并将结果（也就是每个 consumer 负责的 partition 列表）写入 `consumers/balance` 下的各 consumer 节点。
+每个 Consumer 都监听着 `consumers/balance` 下自己的相应节点的数据变化，发生变化时启动，或者关闭相关的 partition worker。
 
 ### TODO
 
