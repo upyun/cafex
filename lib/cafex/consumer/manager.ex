@@ -169,19 +169,19 @@ defmodule Cafex.Consumer.Manager do
   # handle zk messages
   # handle erlzk connection changes, as erlzk monitor
   def handle_info({:disconnected, _host, _port}, state) do
-    Logger.warn "erlzk disconnect #{inspect _host}:#{inspect _port}"
+    Logger.warn "erlzk disconnected #{inspect _host}:#{inspect _port}"
     # TODO
     # erlzk disconnected from zk server, every erlzk command will failed until reconnected
     {:noreply, state}
   end
   def handle_info({:connected, _host, _port}, state) do
-    Logger.warn "erlzk connected#{inspect _host}:#{inspect _port}"
+    Logger.warn "erlzk connected #{inspect _host}:#{inspect _port}"
     # TODO
     # Event maybe missed on zk server, need to check again for every watched znode
     {:noreply, state}
   end
   def handle_info({:expired, _host, _port}, state) do
-    Logger.warn "erlzk expired#{inspect _host}:#{inspect _port}"
+    Logger.warn "erlzk expired #{inspect _host}:#{inspect _port}"
     # All ephemeral znodes were deleted by zk server, and it caused leader to execute rebalance.
     # So this consumer must stop, and restart by the supervisor.
     {:stop, :zk_session_expired, state}
