@@ -31,6 +31,9 @@ defmodule Cafex.Consumer.LoadBalancer do
 
   ## Examples
 
+      iex> rebalance [], 5
+      []
+
       iex> rebalance [{:a, [0, 1, 2, 3, 4]}], 5
       [{:a, [0, 1, 2, 3, 4]}]
 
@@ -52,6 +55,7 @@ defmodule Cafex.Consumer.LoadBalancer do
   More details see the source of this module or test.
   """
   @spec balance([{atom, [integer]}], integer) :: [{atom, [integer]}]
+  def rebalance([], _partitions), do: []
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
     count     = Float.floor(partitions / length(consumers)) |> trunc
