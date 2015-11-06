@@ -170,15 +170,21 @@ defmodule Cafex.Consumer.Manager do
   # handle erlzk connection changes, as erlzk monitor
   def handle_info({:disconnected, _host, _port}, state) do
     Logger.warn "erlzk disconnect #{inspect _host}:#{inspect _port}"
+    # TODO
+    # erlzk disconnected from zk server, every erlzk command will failed until reconnected
     {:noreply, state}
   end
   def handle_info({:connected, _host, _port}, state) do
     Logger.warn "erlzk connected#{inspect _host}:#{inspect _port}"
+    # TODO
+    # Event maybe missed on zk server, need to check again for every watched znode
     {:noreply, state}
   end
   def handle_info({:expired, _host, _port}, state) do
     Logger.warn "erlzk expired#{inspect _host}:#{inspect _port}"
-    {:noreply, state}
+    # All ephemeral znodes were deleted by zk server, and it caused leader to execute rebalance.
+    # So this consumer must stop, and restart by the supervisor.
+    {:stop, :zk_session_expired, state}
   end
 
   # handle zk watcher events
@@ -201,7 +207,8 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
   def handle_info({:node_deleted, path}, %{zk_online_node: path} = state) do
-    # If it was deleted, the zookeeper session was expired
+    # Should not happend here.
+    # If it was deleted, the zookeeper session must be expired, but the watch event won't received
     Logger.warn fn -> "#{path} node deleted" end
     state = %{state|zk_online_node: nil} |> zk_register
     {:noreply, state}
@@ -241,18 +248,18 @@ defmodule Cafex.Consumer.Manager do
     end
     {:noreply, state}
   end
+  def handle_info({:EXIT, _pid, :normal}, state) do
+    {:noreply, state}
+  end
   def handle_info({:EXIT, pid, reason}, %{r_workers: r_workers, trefs: trefs} = state) do
-    Logger.info fn -> "Worker #{inspect pid} stopped with the reason: #{inspect reason}, try to restart it" end
     state = case HashDict.get(r_workers, pid) do
       nil -> state
       partition ->
+        Logger.info fn -> "Worker #{inspect pid} for partition #{inspect partition} stopped with the reason: #{inspect reason}, try to restart it" end
         state = load_metadata(state)
         tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
         %{state | trefs: HashDict.put(trefs, partition, tref)}
     end
-    {:noreply, state}
-  end
-  def handle_info({:EXIT, _pid, :normal}, state) do
     {:noreply, state}
   end
 
@@ -285,6 +292,7 @@ defmodule Cafex.Consumer.Manager do
                     zk_servers: zk_servers,
                     zk_path: zk_path} = state) do
     {:ok, pid} = :erlzk.connect(zk_servers, 5000, [monitor: self])
+    Process.link(pid)
     path = Path.join [zk_path, topic_name, group_name]
     online_path = Path.join [path, "consumers", "online"]
     offline_path = Path.join [path, "consumers", "offline"]
