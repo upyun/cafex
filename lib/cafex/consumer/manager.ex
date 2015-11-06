@@ -157,7 +157,6 @@ defmodule Cafex.Consumer.Manager do
     Logger.warn "leader_election"
     state = state |> leader_election
                   |> load_balance
-                  # |> restart_workers
     {:noreply, state}
   end
 
@@ -183,44 +182,43 @@ defmodule Cafex.Consumer.Manager do
   end
 
   # handle zk watcher events
-  def handle_info({:get_children, path, :node_children_changed}, %{group_name: group, zk_online_path: path} = state) do
+  def handle_info({:node_children_changed, path}, %{zk_online_path: path} = state) do
     # Online nodes changed
-    Logger.info fn -> "#{group} consumers changed, rebalancing ..." end
+    Logger.info fn -> "#{state.group_name} consumers changed, rebalancing ..." end
     state = load_balance(state)
     {:noreply, state}
   end
-  def handle_info({_op, path, :node_created}, %{zk_balance_node: path} = state) do
+  def handle_info({:node_created, path}, %{zk_balance_node: path} = state) do
     # balance_node created, start workers
-    Logger.info fn -> "#{inspect _op} #{path} partition node created, restart_workers" end
+    Logger.info fn -> "#{path} partition node created, restart_workers" end
     state = restart_workers(state)
     {:noreply, state}
   end
-  def handle_info({_op, path, :node_data_changed}, %{zk_balance_node: path} = state) do
+  def handle_info({:node_data_changed, path}, %{zk_balance_node: path} = state) do
     # balance_node created, start workers
-    Logger.info fn -> "#{inspect _op} #{path} partition layout changed, restart_workers" end
+    Logger.info fn -> "#{path} partition layout changed, restart_workers" end
     state = restart_workers(state)
     {:noreply, state}
   end
-  def handle_info({:get_data, path, :node_data_changed}, %{zk_balance_node: path} = state) do
-    Logger.info fn -> ":get_data #{path} partition layout changed, restart_workers" end
-    state = restart_workers(state)
-    {:noreply, state}
-  end
-  def handle_info({_, path, :node_deleted}, %{zk_online_node: path} = state) do
-    # Should not happen, if it happens, maybe zookeeper session expired
+  def handle_info({:node_deleted, path}, %{zk_online_node: path} = state) do
+    # If it was deleted, the zookeeper session was expired
     Logger.warn fn -> "#{path} node deleted" end
-    state = zk_register state
+    state = %{state|zk_online_node: nil} |> zk_register
     {:noreply, state}
   end
-  def handle_info({_, path, :node_deleted}, %{zk_balance_node: path} = state) do
-    # Should not happen, if it happens, maybe zookeeper session expired
-    # TODO
+  def handle_info({:node_deleted, path}, %{zk_balance_node: path} = state) do
+    # The zk_balance_node is not an ephemeral node, the only reason to be deleted
+    # is the zk session of this node was expired, then the online node was deleted
+    # by zk server, and the balance_node was deleted by leader after rebalance.
+    #
+    # Stop consumer itself and restart by supervisor can solve this.
     {:stop, :node_deleted, state}
   end
 
   # handle linked process EXIT
-  def handle_info({:EXIT, _pid, :normal}, state) do
-    {:noreply, state}
+  def handle_info({:EXIT, pid, reason}, %{zk_pid: pid} = state) do
+    Logger.error "ZooKeeper connection exit with reason: #{inspect reason}, stop cusumer."
+    {:stop, reason, %{state|zk_pid: nil}}
   end
   def handle_info({:EXIT, pid, reason}, %{coordinator: pid} = state) do
     Logger.warn fn -> "Coordinator exit with the reason #{inspect reason}" end
@@ -252,6 +250,9 @@ defmodule Cafex.Consumer.Manager do
         tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
         %{state | trefs: HashDict.put(trefs, partition, tref)}
     end
+    {:noreply, state}
+  end
+  def handle_info({:EXIT, _pid, :normal}, state) do
     {:noreply, state}
   end
 

@@ -35,6 +35,6 @@ defmodule Cafex.Mixfile do
   defp deps do
     [{:earmark, "~> 0.1.17", only: :dev},
      {:ex_doc,  "~> 0.10.0", only: :dev},
-     {:erlzk,   git: "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git"}]
+     {:erlzk,   git: "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git", branch: "develop"}]
   end
 end

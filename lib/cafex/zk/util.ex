@@ -5,20 +5,20 @@ defmodule Cafex.ZK.Util do
 
   def create_nodes(_pid, []), do: :ok
   def create_nodes( pid, [node|rest]) do
-    case create_nodes(pid, node) do
+    case create_node(pid, node) do
       :ok -> create_nodes(pid, rest)
       error -> error
     end
   end
 
-  def create_nodes(_pid, "/"), do: :ok
-  def create_nodes( pid, path) do
+  def create_node(_pid, "/"), do: :ok
+  def create_node( pid, path) do
     path = String.rstrip(path, ?/)
     case :erlzk.exists(pid, path) do
       {:ok, _stat} ->
         :ok
       {:error, :no_node} ->
-        case create_nodes(pid, Path.dirname(path)) do
+        case create_node(pid, Path.dirname(path)) do
           :ok ->
             case :erlzk.create(pid, path) do
               {:ok, _} -> :ok
@@ -28,8 +28,6 @@ defmodule Cafex.ZK.Util do
           error ->
             error
         end
-      {:error, :closed} ->
-        create_nodes(pid, path)
     end
   end
 

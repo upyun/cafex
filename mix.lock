@@ -1,4 +1,4 @@
 %{"earmark": {:hex, :earmark, "0.1.17"},
-  "erlzk": {:git, "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git", "1fa486c7b65e96f5421d977b22df526dd47e87bc", []},
+  "erlzk": {:git, "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git", "5603969255bc4dbf7f94abddd4da4108c8916483", [branch: "develop"]},
   "ex_doc": {:hex, :ex_doc, "0.10.0"},
   "kafka_ex": {:hex, :kafka_ex, "0.1.0"}}

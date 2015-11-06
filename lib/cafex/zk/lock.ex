@@ -31,7 +31,7 @@ defmodule Cafex.ZK.Lock do
       {:ok, seq} ->
         {:ok, List.to_string(seq)}
       {:error, :no_node} ->
-        :ok = Util.create_nodes(pid, path)
+        :ok = Util.create_node(pid, path)
         create_node(pid, path)
     end
   end
@@ -94,7 +94,7 @@ defmodule Cafex.ZK.Lock do
     parent = self
     spawn_link fn ->
       receive do
-        {:exists, ^path, :node_deleted} ->
+        {:node_deleted, ^path} ->
           send parent, {:lock_again, seq}
       end
     end
@@ -103,7 +103,7 @@ defmodule Cafex.ZK.Lock do
     parent = self
     spawn_link fn ->
       receive do
-        {:exists, ^path, :node_deleted} ->
+        {:node_deleted, ^path} ->
           send parent, :check_again
       after
         timeout ->
