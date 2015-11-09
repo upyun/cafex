@@ -1,32 +1,6 @@
 defmodule Cafex.Consumer.LoadBalancer do
 
   @doc """
-  _Deprecated_
-
-  Balance partition assignment between consumers
-
-  ## Examples
-
-      iex> balance([:a], 5)
-      [{:a, [0, 1, 2, 3, 4]}]
-
-      iex> balance([:a, :b], 5)
-      [{:a, [0, 1, 2]}, {:b, [3, 4]}]
-
-      iex> balance([:a, :b, :c], 5)
-      [{:a, [0, 1]}, {:b, [2, 3]}, {:c, [4]}]
-
-      iex> balance([:a, :b, :c], 6)
-      [{:a, [0, 1]}, {:b, [2, 3]}, {:c, [4, 5]}]
-  """
-  @spec balance([atom], integer) :: [{atom, [integer]}]
-  def balance(consumers, partitions) do
-    count  = round(partitions / length(consumers))
-    chunks = Enum.chunk 0..(partitions - 1), count, count, []
-    Enum.zip consumers, chunks
-  end
-
-  @doc """
   Balance partition assignment between consumers
 
   ## Examples
@@ -54,7 +28,7 @@ defmodule Cafex.Consumer.LoadBalancer do
 
   More details see the source of this module or test.
   """
-  @spec balance([{atom, [integer]}], integer) :: [{atom, [integer]}]
+  @spec rebalance([{atom, [integer]}], integer) :: [{atom, [integer]}]
   def rebalance([], _partitions), do: []
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
