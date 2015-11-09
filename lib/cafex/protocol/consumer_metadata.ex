@@ -21,6 +21,7 @@ defmodule Cafex.Protocol.ConsumerMetadata do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 10
+    def api_version(_), do: 0
     def encode(request) do
       Cafex.Protocol.ConsumerMetadata.encode(request)
     end

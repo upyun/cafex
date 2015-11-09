@@ -29,6 +29,7 @@ defmodule Cafex.Protocol.Fetch do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 1
+    def api_version(_), do: 0
     def encode(request) do
       Cafex.Protocol.Fetch.encode(request)
     end

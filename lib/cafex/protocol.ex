@@ -1,13 +1,13 @@
 defmodule Cafex.Protocol do
-  @api_version  0
 
   alias Cafex.Protocol.Request
   alias Cafex.Protocol.Message
 
   def encode_request(client_id, correlation_id, request) do
     api_key = Request.api_key(request)
+    api_version = Request.api_version(request)
     payload = Request.encode(request)
-    << api_key :: 16, @api_version :: 16, correlation_id :: 32,
+    << api_key :: 16, api_version :: 16, correlation_id :: 32,
        byte_size(client_id) :: 16, client_id :: binary,
        payload :: binary >>
   end

@@ -24,6 +24,7 @@ defmodule Cafex.Protocol.Metadata do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 3
+    def api_version(_), do: 0
 
     def encode(%Request{topics: topics}) do
       topics

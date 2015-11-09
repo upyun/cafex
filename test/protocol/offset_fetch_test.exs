@@ -5,12 +5,27 @@ defmodule Cafex.Protocol.OffsetFetch.Test do
   alias Cafex.Protocol.OffsetFetch.Request
   alias Cafex.Protocol.OffsetFetch.Response
 
-  test "create_request creates a valid offset commit message" do
-    offset_commit_request = %Request{ consumer_group: "bar",
-                                      topics: [{"foo", [0]}] }
+  test "create_request creates a valid offset commit message with default version 0" do
+    offset_commit_request_default = %Request{ consumer_group: "bar",
+                                              topics: [{"foo", [0]}] }
+    offset_commit_request_v0      = %Request{ api_version: 0,
+                                              consumer_group: "bar",
+                                              topics: [{"foo", [0]}] }
+    offset_commit_request_v1      = %Request{ api_version: 1,
+                                              consumer_group: "bar",
+                                              topics: [{"foo", [0]}] }
+    offset_commit_request_v2      = %Request{ api_version: 2,
+                                              consumer_group: "bar",
+                                              topics: [{"foo", [0]}] }
     good_request = << 3 :: 16, "bar" :: binary, 1 :: 32, 3 :: 16, "foo" :: binary, 1 :: 32, 0 :: 32 >>
-    request = OffsetFetch.encode(offset_commit_request)
-    assert request == good_request
+    request_default = OffsetFetch.encode(offset_commit_request_default)
+    request_v0 = OffsetFetch.encode(offset_commit_request_v0)
+    request_v1 = OffsetFetch.encode(offset_commit_request_v1)
+    request_v2 = OffsetFetch.encode(offset_commit_request_v2)
+    assert request_default == good_request
+    assert request_v0 == good_request
+    assert request_v1 == good_request
+    assert request_v2 == good_request
   end
 
   test "parse_response correctly parses a valid response" do

@@ -6,6 +6,8 @@ defprotocol Cafex.Protocol.Request do
   """
   def api_key(req)
 
+  def api_version(req)
+
   @doc """
   Encode the request
   """

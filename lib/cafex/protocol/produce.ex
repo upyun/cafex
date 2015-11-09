@@ -13,6 +13,7 @@ defmodule Cafex.Protocol.Produce do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 0
+    def api_version(_), do: 0
 
     def encode(request) do
       Cafex.Protocol.Produce.encode(request)

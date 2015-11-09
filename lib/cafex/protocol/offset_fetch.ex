@@ -1,11 +1,18 @@
 defmodule Cafex.Protocol.OffsetFetch do
   @behaviour Cafex.Protocol.Decoder
 
+  @moduledoc """
+  The offset fetch request support version 0, 1 and 2.
+  To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetFetchRequest).
+  """
+
   defmodule Request do
-    defstruct consumer_group: nil,
+    defstruct api_version: 0,
+              consumer_group: nil,
               topics: []
 
-    @type t :: %Request{consumer_group: binary,
+    @type t :: %Request{api_version: 0 | 1 | 2,
+                        consumer_group: binary,
                         topics: [{topic_name :: String.t,
                                   partitions :: [integer]}]}
   end
@@ -21,6 +28,7 @@ defmodule Cafex.Protocol.OffsetFetch do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 9
+    def api_version(%{api_version: api_version}), do: api_version
     def encode(request) do
       Cafex.Protocol.OffsetFetch.encode(request)
     end

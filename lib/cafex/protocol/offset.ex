@@ -24,6 +24,7 @@ defmodule Cafex.Protocol.Offset do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 2
+    def api_version(_), do: 0
 
     def encode(request) do
       Cafex.Protocol.Offset.encode(request)
