@@ -335,9 +335,10 @@ defmodule Cafex.Consumer.Manager do
     case :erlzk.delete(pid, offline_node) do
       :ok ->
         Logger.info "I am back online"
-      _ ->
-        # TODO
-        :ok
+      {:error, :no_node} ->
+          :ok
+      {:error, reason} ->
+        throw reason
     end
 
     case :erlzk.create(pid, name, :ephemeral) do
