@@ -24,11 +24,10 @@ defmodule Cafex.Protocol.OffsetCommit.Test do
   test "create_request creates a valid offset commit message with version 1" do
     offset_commit_request_v1      = %Request{api_version: 1,
                                              consumer_group: "bar",
-                                             consumer_group_generation_id: 5,
                                              consumer_id: "consumer1",
-                                             topics: [{"foo", [{0, 10, 1447049805, "baz"}]}]}
+                                             topics: [{"foo", [{0, 10, "baz"}]}]}
 
-    good_request = << 3 :: 16, "bar", 5 :: 32, 9 :: 16, "consumer1", 1 :: 32, 3 :: 16, "foo", 1 :: 32, 0 :: 32, 10 :: 64, 1447049805 :: 64, 3 :: 16, "baz" >>
+    good_request = << 3 :: 16, "bar", -1 :: 32, 9 :: 16, "consumer1", 1 :: 32, 3 :: 16, "foo", 1 :: 32, 0 :: 32, 10 :: 64, -1 :: 64, 3 :: 16, "baz" >>
 
     request_v1      = OffsetCommit.encode(offset_commit_request_v1)
 
@@ -38,12 +37,11 @@ defmodule Cafex.Protocol.OffsetCommit.Test do
   test "create_request creates a valid offset commit message with version 2" do
     offset_commit_request_v2      = %Request{api_version: 2,
                                              consumer_group: "bar",
-                                             consumer_group_generation_id: 5,
+                                             consumer_group_generation_id: -1,
                                              consumer_id: "consumer1",
-                                             retention_time: 1447049805,
                                              topics: [{"foo", [{0, 10, "baz"}]}]}
 
-    good_request = << 3 :: 16, "bar", 5 :: 32, 9 :: 16, "consumer1", 1447049805 :: 64, 1 :: 32, 3 :: 16, "foo", 1 :: 32, 0 :: 32, 10 :: 64, 3 :: 16, "baz" >>
+    good_request = << 3 :: 16, "bar", -1 :: 32, 9 :: 16, "consumer1", -1 :: 64, 1 :: 32, 3 :: 16, "foo", 1 :: 32, 0 :: 32, 10 :: 64, 3 :: 16, "baz" >>
 
     request_v2      = OffsetCommit.encode(offset_commit_request_v2)
 

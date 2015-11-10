@@ -52,6 +52,7 @@ defmodule Cafex.Consumer.Manager do
               workers: HashDict.new,
               r_workers: HashDict.new,
               trefs: HashDict.new,
+              offset_storage: :kafka,
               coordinator: nil,
               leader: {false, nil}
   end
@@ -125,8 +126,9 @@ defmodule Cafex.Consumer.Manager do
   end
   def handle_call({:offset_commit, partition, offset, metadata}, _from, %{group_name: group,
                                                                           topic_name: topic,
+                                                                          offset_storage: storage,
                                                                           coordinator: coordinator} = state) do
-    reply = offset_commit(coordinator, group, topic, partition, offset, metadata)
+    reply = offset_commit(storage, coordinator, group, topic, partition, offset, metadata)
     {:reply, reply, state}
   end
 
@@ -136,8 +138,9 @@ defmodule Cafex.Consumer.Manager do
   def handle_call({:offset_fetch, partition}, _from, %{group_name: group,
                                                        topic_name: topic,
                                                        topic_pid: topic_pid,
+                                                       offset_storage: storage,
                                                        coordinator: coordinator} = state) do
-    case offset_fetch(coordinator, group, topic, partition) do
+    case offset_fetch(storage, coordinator, group, topic, partition) do
       {:ok, _} = reply ->
         {:reply, reply, state}
       {:error, :unknown_topic_or_partition} ->
@@ -529,9 +532,14 @@ defmodule Cafex.Consumer.Manager do
     end
   end
 
-  defp offset_fetch(coordinator_pid, group, topic, partition) do
+  defp offset_fetch(storage, coordinator_pid, group, topic, partition) do
     request = %OffsetFetch.Request{consumer_group: group,
                                    topics: [{topic, [partition]}]}
+    request = case storage do
+      :zookeeper -> %{request | api_version: 0}
+      :kafka     -> %{request | api_version: 1}
+    end
+
     case Connection.request(coordinator_pid, request, OffsetFetch) do
       {:ok, %{topics: [{^topic, [{^partition, offset, metadata, :no_error}]}]}} ->
         {:ok, {offset, metadata}}
@@ -542,9 +550,13 @@ defmodule Cafex.Consumer.Manager do
     end
   end
 
-  defp offset_commit(coordinator_pid, group, topic, partition, offset, metadata) do
+  defp offset_commit(storage, coordinator_pid, group, topic, partition, offset, metadata) do
     request = %OffsetCommit.Request{consumer_group: group,
                                     topics: [{topic, [{partition, offset, metadata}]}]}
+    request = case storage do
+      :zookeeper -> %{request | api_version: 0}
+      :kafka     -> %{request | api_version: 1}
+    end
     case Connection.request(coordinator_pid, request, OffsetCommit) do
       {:ok, %{topics: [{^topic, [{^partition, :no_error}]}]}} ->
         :ok

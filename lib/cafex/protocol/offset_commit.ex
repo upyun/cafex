@@ -6,6 +6,9 @@ defmodule Cafex.Protocol.OffsetCommit do
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
   """
 
+  @default_consumer_group_generation_id -1
+  @default_timestamp -1
+
   defmodule Request do
     defstruct api_version: 0,
               consumer_group: "cafex",
@@ -45,28 +48,60 @@ defmodule Cafex.Protocol.OffsetCommit do
     end
   end
 
-  def encode(%{api_version: 0} = request), do: encode_0(request)
-  def encode(%{api_version: 1} = request), do: encode_1(request)
-  def encode(%{api_version: 2} = request), do: encode_2(request)
+  def encode(request) do
+    request |> fill_default |> do_encode
+  end
 
-  def encode_0(%{consumer_group: consumer_group, topics: topics}) do
+  defp do_encode(%{api_version: 0} = request), do: encode_0(request)
+  defp do_encode(%{api_version: 1} = request), do: encode_1(request)
+  defp do_encode(%{api_version: 2} = request), do: encode_2(request)
+
+  defp fill_default(%{api_version: version,
+                      consumer_group_generation_id: id,
+                      retention_time: time,
+                      topics: topics} = request) do
+    id = case id do
+      nil -> @default_consumer_group_generation_id
+      other -> other
+    end
+
+    time = case time do
+      nil -> @default_timestamp
+      other -> other
+    end
+
+    topics = case version do
+      1 ->
+        Enum.map(topics, fn {topic_name, partitions} ->
+          partitions = Enum.map(partitions, fn
+            {p, o, m} -> {p, o, @default_timestamp, m}
+            {_, _, _, _} = partition -> partition
+          end)
+          {topic_name, partitions}
+        end)
+      _ -> topics
+    end
+    %{request | consumer_group_generation_id: id, retention_time: time, topics: topics}
+  end
+
+  defp encode_0(%{consumer_group: consumer_group, topics: topics}) do
     [Cafex.Protocol.encode_string(consumer_group),
-     Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+     Cafex.Protocol.encode_array(topics, &encode_topic_0/1)]
     |> IO.iodata_to_binary
   end
 
-  def encode_1(%{consumer_group: consumer_group,
+  defp encode_1(%{consumer_group: consumer_group,
                 consumer_group_generation_id: consumer_group_generation_id,
                 consumer_id: consumer_id,
                 topics: topics}) do
     [Cafex.Protocol.encode_string(consumer_group),
      <<consumer_group_generation_id :: 32-signed>>,
      Cafex.Protocol.encode_string(consumer_id),
-     Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+     Cafex.Protocol.encode_array(topics, &encode_topic_1/1)]
     |> IO.iodata_to_binary
   end
 
-  def encode_2(%{consumer_group: consumer_group,
+  defp encode_2(%{consumer_group: consumer_group,
                 consumer_group_generation_id: consumer_group_generation_id,
                 consumer_id: consumer_id,
                 retention_time: retention_time,
@@ -75,21 +110,26 @@ defmodule Cafex.Protocol.OffsetCommit do
      <<consumer_group_generation_id :: 32-signed>>,
      Cafex.Protocol.encode_string(consumer_id),
      <<retention_time :: 64>>,
-     Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+     Cafex.Protocol.encode_array(topics, &encode_topic_2/1)]
     |> IO.iodata_to_binary
   end
 
-  defp encode_topic({topic, partitions}) do
+  defp encode_topic_0(data), do: encode_topic(data, &encode_partition_0/1)
+  defp encode_topic_1(data), do: encode_topic(data, &encode_partition_1/1)
+  defp encode_topic_2(data), do: encode_topic(data, &encode_partition_2/1)
+
+  defp encode_topic({topic, partitions}, func) do
     [Cafex.Protocol.encode_string(topic),
-     Cafex.Protocol.encode_array(partitions, &encode_partition/1)]
+     Cafex.Protocol.encode_array(partitions, func)]
   end
 
-  defp encode_partition({partition, offset, metadata}) do
+  defp encode_partition_0({partition, offset, metadata}) do
     [<< partition :: 32-signed, offset :: 64 >>, Cafex.Protocol.encode_string(metadata)]
   end
-  defp encode_partition({partition, offset, timestamp, metadata}) do
+  defp encode_partition_1({partition, offset, timestamp, metadata}) do
     [<< partition :: 32-signed, offset :: 64, timestamp :: 64 >>, Cafex.Protocol.encode_string(metadata)]
   end
+  defp encode_partition_2(data), do: encode_partition_0(data)
 
   def decode(data) when is_binary(data) do
     {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
