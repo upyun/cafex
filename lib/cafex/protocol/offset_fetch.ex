@@ -15,6 +15,14 @@ defmodule Cafex.Protocol.OffsetFetch do
                         consumer_group: binary,
                         topics: [{topic_name :: String.t,
                                   partitions :: [integer]}]}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 9
+      def api_version(%{api_version: api_version}), do: api_version
+      def encode(request) do
+        Cafex.Protocol.OffsetFetch.encode(request)
+      end
+    end
   end
 
   defmodule Response do
@@ -24,14 +32,6 @@ defmodule Cafex.Protocol.OffsetFetch do
                                       offset :: integer,
                                     metadata :: String.t,
                                       error  :: Cafex.Protocol.Errors.t}]}
-  end
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 9
-    def api_version(%{api_version: api_version}), do: api_version
-    def encode(request) do
-      Cafex.Protocol.OffsetFetch.encode(request)
-    end
   end
 
   def encode(%{consumer_group: consumer_group, topics: topics}) do

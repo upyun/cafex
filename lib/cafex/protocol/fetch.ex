@@ -16,6 +16,14 @@ defmodule Cafex.Protocol.Fetch do
                                   partitions :: [{partition :: integer,
                                                   offset :: integer,
                                                   max_bytes :: integer}]}]}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 1
+      def api_version(_), do: 0
+      def encode(request) do
+        Cafex.Protocol.Fetch.encode(request)
+      end
+    end
   end
 
   defmodule Response do
@@ -25,14 +33,6 @@ defmodule Cafex.Protocol.Fetch do
                                                    error :: Cafex.Protocol.Errors.t,
                                                    hwm_offset :: integer,
                                                    messages :: [Message.t]}]}]}
-  end
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 1
-    def api_version(_), do: 0
-    def encode(request) do
-      Cafex.Protocol.Fetch.encode(request)
-    end
   end
 
   def encode(%{replica_id: replica_id, max_wait_time: max_wait_time,

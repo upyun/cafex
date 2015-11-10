@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.ConsumerMetadata do
     defstruct consumer_group: nil
 
     @type t :: %Request{consumer_group: binary}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 10
+      def api_version(_), do: 0
+      def encode(request) do
+        Cafex.Protocol.ConsumerMetadata.encode(request)
+      end
+    end
   end
 
   defmodule Response do
@@ -17,14 +25,6 @@ defmodule Cafex.Protocol.ConsumerMetadata do
                           coordinator_host: binary,
                           coordinator_port: 0..65535,
                           error: Cafex.Protocol.Errors.t }
-  end
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 10
-    def api_version(_), do: 0
-    def encode(request) do
-      Cafex.Protocol.ConsumerMetadata.encode(request)
-    end
   end
 
   def encode(%{consumer_group: consumer_group}) do

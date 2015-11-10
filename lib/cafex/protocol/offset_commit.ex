@@ -30,6 +30,14 @@ defmodule Cafex.Protocol.OffsetCommit do
                                                 |{partition :: integer,
                                                   offset :: integer,
                                                   metadata:: binary}]}]}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 8
+      def api_version(%{api_version: api_version}), do: api_version
+      def encode(request) do
+        Cafex.Protocol.OffsetCommit.encode(request)
+      end
+    end
   end
 
   defmodule Response do
@@ -38,14 +46,6 @@ defmodule Cafex.Protocol.OffsetCommit do
     @type t :: %Response{ topics: [{topic_name :: String.t,
                                     partitions :: [{partition :: integer,
                                                         error :: Cafex.Protocol.Errors.t}]}] }
-  end
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 8
-    def api_version(%{api_version: api_version}), do: api_version
-    def encode(request) do
-      Cafex.Protocol.OffsetCommit.encode(request)
-    end
   end
 
   def encode(request) do

@@ -5,6 +5,17 @@ defmodule Cafex.Protocol.Metadata do
     defstruct topics: []
 
     @type t :: %Request{topics: [binary]}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 3
+      def api_version(_), do: 0
+
+      def encode(%Request{topics: topics}) do
+        topics
+        |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
+        |> IO.iodata_to_binary
+      end
+    end
   end
 
   defmodule Response do
@@ -20,17 +31,6 @@ defmodule Cafex.Protocol.Metadata do
                                                                leader: integer,
                                                                replicas: [integer],
                                                                isrs: [integer]}]}]}
-  end
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 3
-    def api_version(_), do: 0
-
-    def encode(%Request{topics: topics}) do
-      topics
-      |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
-      |> IO.iodata_to_binary
-    end
   end
 
   def decode(data) when is_binary(data) do

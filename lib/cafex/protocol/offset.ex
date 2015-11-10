@@ -10,6 +10,15 @@ defmodule Cafex.Protocol.Offset do
                                   partitions :: [{partition :: integer,
                                                   time :: integer,
                                                   max_number_of_offsets :: integer}]}]}
+
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 2
+      def api_version(_), do: 0
+
+      def encode(request) do
+        Cafex.Protocol.Offset.encode(request)
+      end
+    end
   end
 
   defmodule Response do
@@ -19,16 +28,6 @@ defmodule Cafex.Protocol.Offset do
                                      partitions :: [{partition :: integer,
                                                      error :: Cafex.Protocol.Errors.t,
                                                      offsets :: [integer]}]}]}
-  end
-
-
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 2
-    def api_version(_), do: 0
-
-    def encode(request) do
-      Cafex.Protocol.Offset.encode(request)
-    end
   end
 
   def encode(%Request{replica_id: replica_id, topics: topics}) do

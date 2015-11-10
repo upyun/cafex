@@ -9,14 +9,14 @@ defmodule Cafex.Protocol.Produce do
     @type t :: %Request{ required_acks: binary,
                          timeout: integer,
                          messages: [Cafex.Protocol.Message.t] }
-  end
 
-  defimpl Cafex.Protocol.Request, for: Request do
-    def api_key(_), do: 0
-    def api_version(_), do: 0
+    defimpl Cafex.Protocol.Request do
+      def api_key(_), do: 0
+      def api_version(_), do: 0
 
-    def encode(request) do
-      Cafex.Protocol.Produce.encode(request)
+      def encode(request) do
+        Cafex.Protocol.Produce.encode(request)
+      end
     end
   end
 
