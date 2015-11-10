@@ -141,6 +141,8 @@ defmodule Cafex.Consumer.Manager do
                                                        offset_storage: storage,
                                                        coordinator: coordinator} = state) do
     case offset_fetch(storage, coordinator, group, topic, partition) do
+      {:ok, {-1, _}} ->
+        {:reply, get_offset(topic_pid, partition), state}
       {:ok, _} = reply ->
         {:reply, reply, state}
       {:error, :unknown_topic_or_partition} ->
