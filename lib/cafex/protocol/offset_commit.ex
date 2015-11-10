@@ -13,7 +13,7 @@ defmodule Cafex.Protocol.OffsetCommit do
     defstruct api_version: 0,
               consumer_group: "cafex",
               consumer_group_generation_id: nil,
-              consumer_id: nil,
+              consumer_id: "",
               retention_time: nil,
               topics: []
 
@@ -42,7 +42,7 @@ defmodule Cafex.Protocol.OffsetCommit do
 
   defimpl Cafex.Protocol.Request, for: Request do
     def api_key(_), do: 8
-    def api_version(_), do: 0
+    def api_version(%{api_version: api_version}), do: api_version
     def encode(request) do
       Cafex.Protocol.OffsetCommit.encode(request)
     end
@@ -58,6 +58,7 @@ defmodule Cafex.Protocol.OffsetCommit do
 
   defp fill_default(%{api_version: version,
                       consumer_group_generation_id: id,
+                      consumer_id: consumer_id,
                       retention_time: time,
                       topics: topics} = request) do
     id = case id do
@@ -67,6 +68,11 @@ defmodule Cafex.Protocol.OffsetCommit do
 
     time = case time do
       nil -> @default_timestamp
+      other -> other
+    end
+
+    consumer_id = case consumer_id do
+      nil -> ""
       other -> other
     end
 
@@ -81,7 +87,7 @@ defmodule Cafex.Protocol.OffsetCommit do
         end)
       _ -> topics
     end
-    %{request | consumer_group_generation_id: id, retention_time: time, topics: topics}
+    %{request | consumer_group_generation_id: id, consumer_id: consumer_id, retention_time: time, topics: topics}
   end
 
   defp encode_0(%{consumer_group: consumer_group, topics: topics}) do

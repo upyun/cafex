@@ -29,7 +29,12 @@ defmodule Cafex.Protocol.OffsetFetch.Test do
   end
 
   test "parse_response correctly parses a valid response" do
-    response = <<0, 0, 0, 1, 0, 4, 102, 111, 111, 100, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0>>
-    assert OffsetFetch.decode(response) == %Response{topics: [{"food", [{0, 9, "", :no_error}]}]}
+    response1 = <<0, 0, 0, 1, 0, 4, 102, 111, 111, 100, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0>>
+    # response1 = <<1 :: 32, 4 :: 16, "food", 1 :: 32, 0 :: 32, 9 :: 64, 0 :: 16, 0 :: 16>>
+    assert OffsetFetch.decode(response1) == %Response{topics: [{"food", [{0, 9, "", :no_error}]}]}
+
+    response2 = <<0, 0, 0, 1, 0, 4, 102, 111, 111, 100, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 255, 255, 0, 0>>
+    # response2 = << 1 :: 32, 4 :: 16, "food", 1 :: 32, 1 :: 32, 4 :: 64, -1 :: 16, 0 :: 16>>
+    assert OffsetFetch.decode(response2) == %Response{topics: [{"food", [{1, 4, nil, :no_error}]}]}
   end
 end

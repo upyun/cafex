@@ -11,7 +11,7 @@ defmodule Cafex.Protocol.OffsetFetch do
               consumer_group: nil,
               topics: []
 
-    @type t :: %Request{api_version: 0 | 1 | 2,
+    @type t :: %Request{api_version: 0 | 1,
                         consumer_group: binary,
                         topics: [{topic_name :: String.t,
                                   partitions :: [integer]}]}
@@ -56,6 +56,10 @@ defmodule Cafex.Protocol.OffsetFetch do
     {{topic, partitions}, rest}
   end
 
+  defp decode_partition(<< partition :: 32-signed, offset :: 64-signed,
+                           -1 :: 16-signed, error_code :: 16-signed, rest :: binary >>) do
+    {{partition, offset, nil, Cafex.Protocol.Errors.error(error_code)}, rest}
+  end
   defp decode_partition(<< partition :: 32-signed, offset :: 64-signed,
                            size :: 16-signed, metadata :: size(size)-binary,
                            error_code :: 16-signed, rest :: binary >>) do
