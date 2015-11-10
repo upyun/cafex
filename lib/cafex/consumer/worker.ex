@@ -3,12 +3,19 @@ defmodule Cafex.Consumer.Worker do
 
   require Logger
 
+  @wait_time 100
+  @min_bytes 32 * 1024
+  @max_bytes 1024 * 1024
+
   defmodule State do
     @moduledoc false
     defstruct topic: nil,
               group: nil,
               partition: nil,
               broker: nil,
+              wait_time: nil,
+              min_bytes: nil,
+              max_bytes: nil,
               zk_pid: nil,
               zk_path: nil,
               conn: nil,
@@ -31,8 +38,8 @@ defmodule Cafex.Consumer.Worker do
   # API
   # ===================================================================
 
-  def start_link(manager, handler, topic, group, partition, broker, zk_pid, zk_path) do
-    :gen_fsm.start_link __MODULE__, [manager, handler, topic, group, partition, broker, zk_pid, zk_path], []
+  def start_link(manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts \\ []) do
+    :gen_fsm.start_link __MODULE__, [manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts], []
   end
 
   def stop(pid) do
@@ -43,7 +50,10 @@ defmodule Cafex.Consumer.Worker do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path]) do
+  def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, nil]) do
+    init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, []])
+  end
+  def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
     state = %State{topic: topic,
                    group: group,
                    partition: partition,
@@ -51,7 +61,10 @@ defmodule Cafex.Consumer.Worker do
                    manager: manager,
                    handler: handler,
                    zk_pid: zk_pid,
-                   zk_path: zk_path}
+                   zk_path: zk_path,
+                   wait_time: Keyword.get(opts, :wait_time, @wait_time),
+                   min_bytes: Keyword.get(opts, :min_bytes, @min_bytes),
+                   max_bytes: Keyword.get(opts, :max_bytes, @max_bytes)}
     {:ok, :aquire_lock, state, 0}
   end
 
@@ -108,20 +121,20 @@ defmodule Cafex.Consumer.Worker do
     handle_fetch_response(response, state)
   end
 
-	@doc false
-	def handle_event(event, state_name, state_data) do
-		{:stop, {:bad_event, state_name, event}, state_data}
-	end
+  @doc false
+  def handle_event(event, state_name, state_data) do
+      {:stop, {:bad_event, state_name, event}, state_data}
+  end
 
   def handle_sync_event(:stop, _from, _state_name, state) do
     {:stop, :normal, :ok, state}
   end
 
-	@doc false
-	def handle_info({:lock_again, lock}, state_name, state_data) do
-    :gen_fsm.send_event self, {:lock_again, lock}
-		{:next_state, state_name, state_data}
-	end
+  @doc false
+  def handle_info({:lock_again, lock}, state_name, state_data) do
+  :gen_fsm.send_event self, {:lock_again, lock}
+      {:next_state, state_name, state_data}
+  end
 
   @doc false
   def terminate(_reason, _state_name, %{handler: handler,
@@ -151,19 +164,17 @@ defmodule Cafex.Consumer.Worker do
     if Process.alive?(zk), do: Lock.release(zk, lock)
   end
 
-  # TODO configurable
-  @wait_time 100
-  @min_bytes 32 * 1024
-  @max_bytes 1024 * 1024
-
   defp fetch_messages(%{topic: topic,
                         partition: partition,
                         hwm_offset: offset,
+                        wait_time: wait_time,
+                        min_bytes: min_bytes,
+                        max_bytes: max_bytes,
                         conn: conn} = state) do
     # Logger.debug fn -> "Consumer[#{group}:#{topic}:#{partition}] fetching messages: offset = #{offset}" end
-    request = %FetchRequest{max_wait_time: @wait_time,
-                            min_bytes: @min_bytes,
-                            topics: [{topic, [{partition, offset, @max_bytes}]}]}
+    request = %FetchRequest{max_wait_time: wait_time,
+                            min_bytes: min_bytes,
+                            topics: [{topic, [{partition, offset, max_bytes}]}]}
     Connection.async_request(conn, request, Fetch, {:fsm, self})
     state
   end

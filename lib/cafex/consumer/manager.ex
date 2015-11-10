@@ -28,12 +28,15 @@ defmodule Cafex.Consumer.Manager do
 
   require Logger
 
+  @zk_timeout 5000
+
   defmodule State do
     @moduledoc false
     defstruct group_name: nil,
               topic_pid: nil,
               zk_servers: nil,
               zk_path: nil,
+              zk_timeout: nil,
               zk_online_path: nil,
               zk_offline_path: nil,
               zk_balance_path: nil,
@@ -45,6 +48,7 @@ defmodule Cafex.Consumer.Manager do
               brokers: nil,
               leaders: nil,
               partitions: nil,
+              worker_cfg: nil,
               workers: HashDict.new,
               r_workers: HashDict.new,
               trefs: HashDict.new,
@@ -88,10 +92,12 @@ defmodule Cafex.Consumer.Manager do
 
     cfg        = Application.get_env(:cafex, name, [])
     handler    = Util.get_config(opts, cfg, :handler)
+    worker_cfg = Util.get_config(opts, cfg, :worker)
     zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_servers = Keyword.get(zk_config, :servers, [{"127.0.0.1", 2181}])
                   |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end)
     zk_path    = Keyword.get(zk_config, :path, "/cafex")
+    zk_timeout = Keyword.get(zk_config, :timeout, @zk_timeout)
 
     group_name = Atom.to_string(name)
     Logger.info fn -> "Starting consumer: #{group_name} ..." end
@@ -99,7 +105,9 @@ defmodule Cafex.Consumer.Manager do
     state = %State{ group_name: group_name,
                     topic_pid: topic_pid,
                     handler: handler,
+                    worker_cfg: worker_cfg,
                     zk_servers: zk_servers,
+                    zk_timeout: zk_timeout,
                     zk_path: zk_path }
             |> load_metadata
             |> zk_connect
@@ -274,7 +282,6 @@ defmodule Cafex.Consumer.Manager do
     :ok
   end
 
-
   # ===================================================================
   #  Internal functions
   # ===================================================================
@@ -290,8 +297,9 @@ defmodule Cafex.Consumer.Manager do
   defp zk_connect(%{group_name: group_name,
                     topic_name: topic_name,
                     zk_servers: zk_servers,
+                    zk_timeout: zk_timeout,
                     zk_path: zk_path} = state) do
-    {:ok, pid} = :erlzk.connect(zk_servers, 5000, [monitor: self])
+    {:ok, pid} = :erlzk.connect(zk_servers, zk_timeout, [monitor: self])
     Process.link(pid)
     path = Path.join [zk_path, topic_name, group_name]
     online_path = Path.join [path, "consumers", "online"]
@@ -492,12 +500,13 @@ defmodule Cafex.Consumer.Manager do
                                     brokers: brokers,
                                     leaders: leaders,
                                     handler: handler,
+                                    worker_cfg: worker_cfg,
                                     zk_pid: zk_pid,
                                     zk_path: zk_path}) do
     Logger.info fn -> "Starting consumer worker: #{topic}:#{group}:#{partition}" end
     leader = HashDict.get(leaders, partition)
     broker = HashDict.get(brokers, leader)
-    Worker.start_link(self, handler, topic, group, partition, broker, zk_pid, zk_path)
+    Worker.start_link(self, handler, topic, group, partition, broker, zk_pid, zk_path, worker_cfg)
   end
 
   defp stop_workers(%{workers: workers} = state) do
