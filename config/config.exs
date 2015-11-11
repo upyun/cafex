@@ -51,3 +51,7 @@ config :logger,
 
 config :logger, :console,
   format: "$date $time $metadata[$level] $levelpad$message\n"
+
+if File.exists? Path.join([__DIR__, "#{Mix.env}.exs"]) do
+  import_config "#{Mix.env}.exs"
+end

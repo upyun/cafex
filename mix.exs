@@ -8,6 +8,8 @@ defmodule Cafex.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps,
+     test_paths: test_paths(Mix.env),
+
      name: "Cafex",
      source_url: "https://github.com/upyun/cafex",
      homepage_url: "http://cafex.github.com/",
@@ -37,4 +39,9 @@ defmodule Cafex.Mixfile do
      {:ex_doc,  "~> 0.10.0", only: :dev},
      {:erlzk,   git: "ssh://gitlab@gitlab.widget-inc.com:65422/huaban-core/erlzk.git", branch: "develop"}]
   end
+
+  defp test_paths(:integration), do: ["integration_test"]
+  defp test_paths(:all), do: ["test", "integration_test"]
+  defp test_paths(_), do: ["test"]
+
 end
