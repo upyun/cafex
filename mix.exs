@@ -10,6 +10,11 @@ defmodule Cafex.Mixfile do
      deps: deps,
      test_paths: test_paths(Mix.env),
 
+     aliases: ["test.all": ["test.default", "test.integration"],
+       "test.integration": &test_integration/1,
+       "test.default": &test_default/1],
+     preferred_cli_env: ["test.all": :test],
+
      name: "Cafex",
      source_url: "https://github.com/upyun/cafex",
      homepage_url: "http://cafex.github.com/",
@@ -44,4 +49,20 @@ defmodule Cafex.Mixfile do
   defp test_paths(:all), do: ["test", "integration_test"]
   defp test_paths(_), do: ["test"]
 
+  defp env_run(env, args) do
+    args = if IO.ANSI.enabled?, do: ["--color"|args], else: ["--no-color"|args]
+
+    IO.puts "==> Running tests for MIX_ENV=#{env} mix test"
+
+    {_, res} = System.cmd "mix", ["test"|args],
+                          into: IO.binstream(:stdio, :line),
+                          env: [{"MIX_ENV", to_string(env)}]
+
+    if res > 0 do
+      System.at_exit(fn _ -> exit({:shutdown, 1}) end)
+    end
+  end
+
+  defp test_integration(args), do: env_run(:integration, args)
+  defp test_default(args), do: env_run(:test, args)
 end
