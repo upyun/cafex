@@ -132,8 +132,8 @@ defmodule Cafex.Consumer.Worker do
 
   @doc false
   def handle_info({:lock_again, lock}, state_name, state_data) do
-  :gen_fsm.send_event self, {:lock_again, lock}
-      {:next_state, state_name, state_data}
+    :gen_fsm.send_event self, {:lock_again, lock}
+    {:next_state, state_name, state_data}
   end
 
   @doc false
