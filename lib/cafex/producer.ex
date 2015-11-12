@@ -30,8 +30,9 @@ defmodule Cafex.Producer do
   end
 
   def produce(pid, value, opts \\ []) do
-    key = Keyword.get(opts, :key)
-    message = %Message{key: key, value: value}
+    key        = Keyword.get(opts, :key)
+    partition  = Keyword.get(opts, :partition)
+    message    = %Message{key: key, value: value, partition: partition}
     worker_pid = GenServer.call pid, {:get_worker, message}
     Cafex.Producer.Worker.produce(worker_pid, message)
   end
@@ -49,7 +50,7 @@ defmodule Cafex.Producer do
                    client_id: client_id} |> load_metadata
                                          |> start_workers
 
-    partitioner = Keyword.get(opts, :partitioner)
+    partitioner = Keyword.get(opts, :partitioner, Cafex.Partitioner.Random)
     {:ok, partitioner_state} = partitioner.init(state.partitions)
 
     {:ok, %{state | partitioner: partitioner,
@@ -84,12 +85,18 @@ defmodule Cafex.Producer do
   #  Internal functions
   # ===================================================================
 
-  defp dispatch(message, %{partitioner: partitioner,
-                           partitioner_state: partitioner_state,
-                           workers: workers} = state) do
+  defp dispatch(%{partition: nil} = message, %{partitioner: partitioner,
+                                               partitioner_state: partitioner_state,
+                                               workers: workers} = state) do
     {partition, new_state} = partitioner.partition(message, partitioner_state)
+    # TODO: check partition availability
     worker_pid = HashDict.get(workers, partition)
     {worker_pid, %{state | partitioner_state: new_state}}
+  end
+  defp dispatch(%{partition: partition}, %{workers: workers} = state) do
+    # TODO: check partition availability
+    worker_pid = HashDict.get(workers, partition)
+    {worker_pid, state}
   end
 
   defp load_metadata(%{topic_pid: topic_pid} = state) do
