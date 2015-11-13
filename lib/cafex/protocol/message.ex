@@ -1,6 +1,6 @@
 defmodule Cafex.Protocol.Message do
   defstruct topic: nil,
-            partition: 0,
+            partition: nil,
             value: nil,
             key: nil,
             offset: 0,
