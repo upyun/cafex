@@ -9,6 +9,10 @@ defmodule Cafex.ConnectionTest do
   defmodule Server do
     use GenServer
 
+    def stop(pid) do
+      GenServer.call pid, :stop
+    end
+
     def port(pid) do
       GenServer.call pid, :port
     end
@@ -27,12 +31,18 @@ defmodule Cafex.ConnectionTest do
       {:ok, {listen_sock, port}}
     end
 
+    def handle_call(:stop, _from, state) do
+      {:stop, :normal, :ok, state}
+    end
+
     def handle_call(:port, _from, {_, port} = state) do
       {:reply, port, state}
     end
 
     def handle_cast({:received, sock}, state) do
-      do_receive sock
+      spawn fn ->
+        do_receive sock
+      end
       {:noreply, state}
     end
 
@@ -85,19 +95,21 @@ defmodule Cafex.ConnectionTest do
     end
   end
 
-  setup_all do
+  setup do
     {:ok, pid} = GenServer.start Server, []
-    {:ok, pid: pid}
+    {:ok, pid: pid, port: Server.port(pid)}
   end
 
   test "connect and close", context do
-    port = Server.port context[:pid]
-    {:ok, pid} = Connection.start_link "localhost", port
+    port = context[:port]
+    {:ok, pid} = Connection.start "localhost", port
 
     assert Process.alive?(pid)
-    Connection.close(pid)
+    assert :ok == Connection.close(pid)
 
     refute Process.alive?(pid)
+
+    assert {:error, _reason} = Connection.start("unknown_host", 8080)
   end
 
   test "request", context do
@@ -112,19 +124,26 @@ defmodule Cafex.ConnectionTest do
     assert {:ok, {1, "hello"}} == Connection.request(pid, request1, Decoder)
     assert {:ok, {2, "hello"}} == Connection.request(pid, request2, Decoder)
 
-    Connection.close(pid)
+    assert :ok == Connection.close(pid)
 
     refute Process.alive?(pid)
 
     {:ok, pid} = Connection.start "localhost", port
     request3 = %Decoder.Request{test_id: 3, test_msg: "hello", api_key: -1}
-    catch_exit Connection.request(pid, request3, Decoder)
+    assert {:closed, _} = catch_exit Connection.request(pid, request3, Decoder)
     refute Process.alive?(pid)
+
+    {:ok, pid} = Connection.start "localhost", port
+    server_pid = context[:pid]
+    assert Process.alive?(pid)
+    assert :ok == Server.stop(server_pid)
+    assert Process.alive?(pid)
+    assert {:closed, _} = catch_exit Connection.request(pid, request1, Decoder)
   end
 
   test "async request", context do
     port = Server.port context[:pid]
-    {:ok, pid} = Connection.start_link "localhost", port
+    {:ok, pid} = Connection.start "localhost", port
 
     assert Process.alive?(pid)
 
@@ -134,7 +153,7 @@ defmodule Cafex.ConnectionTest do
       assert_receive {:ok, {3, "hello"}}
     end))
 
-    Connection.close(pid)
+    assert :ok == Connection.close(pid)
 
     refute Process.alive?(pid)
   end
