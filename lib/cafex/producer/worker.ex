@@ -152,9 +152,14 @@ defmodule Cafex.Producer.Worker do
                         messages: messages }
 
     case Connection.request(conn, request, Produce) do
-      {:ok, [{^topic, [partition]}]} ->
+      {:ok, [{^topic, [%{error: :no_error}=partition]}]} ->
         replies = Enum.map(message_pairs, fn {from, _} ->
-          {from, partition}
+          {from, :ok}
+        end)
+        {:ok, replies}
+      {:ok, [{^topic, [%{error: reason}]}]} ->
+        replies = Enum.map(message_pairs, fn {from, _} ->
+          {from, {:error, reason}}
         end)
         {:ok, replies}
       {:error, reason} ->
