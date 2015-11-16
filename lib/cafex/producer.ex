@@ -3,6 +3,13 @@ defmodule Cafex.Producer do
 
   use GenServer
 
+  @default_client_id "cafex_producer"
+  @default_acks 1
+  @default_batch_num 200
+  # @default_max_request_size 1024 * 1024
+  @default_linger_ms 0
+  @default_timeout 60000
+
   require Logger
 
   alias Cafex.Protocol.Message
@@ -16,9 +23,7 @@ defmodule Cafex.Producer do
               leaders: nil,
               partitions: 0,
               workers: HashDict.new,
-              client_id: nil,
-              required_acks: 1,
-              timeout: 60000
+              worker_opts: nil
   end
 
   # ===================================================================
@@ -37,6 +42,15 @@ defmodule Cafex.Producer do
     Cafex.Producer.Worker.produce(worker_pid, message)
   end
 
+  def async_produce(pid, value, opts \\ []) do
+    key        = Keyword.get(opts, :key)
+    partition  = Keyword.get(opts, :partition)
+
+    message    = %Message{key: key, value: value, partition: partition}
+    worker_pid = GenServer.call pid, {:get_worker, message}
+    Cafex.Producer.Worker.async_produce(worker_pid, message)
+  end
+
   # ===================================================================
   #  GenServer callbacks
   # ===================================================================
@@ -44,11 +58,22 @@ defmodule Cafex.Producer do
   def init([topic_pid, opts]) do
     Process.flag(:trap_exit, true)
 
-    client_id = Keyword.get(opts, :client_id, "cafex_producer")
+    client_id        = Keyword.get(opts, :client_id, @default_client_id)
+    acks             = Keyword.get(opts, :acks, @default_acks)
+    batch_num        = Keyword.get(opts, :batch_num, @default_batch_num)
+    # max_request_size = Keyword.get(opts, :max_request_size, @default_max_request_size)
+    linger_ms        = Keyword.get(opts, :linger_ms, @default_linger_ms)
 
     state = %State{topic_pid: topic_pid,
-                   client_id: client_id} |> load_metadata
-                                         |> start_workers
+                   worker_opts: [
+                     client_id: client_id,
+                     acks: acks,
+                     batch_num: batch_num,
+                     # max_request_size: max_request_size,
+                     linger_ms: linger_ms,
+                     timeout: @default_timeout
+                   ]} |> load_metadata
+                      |> start_workers
 
     partitioner = Keyword.get(opts, :partitioner, Cafex.Partitioner.Random)
     {:ok, partitioner_state} = partitioner.init(state.partitions)
@@ -116,15 +141,11 @@ defmodule Cafex.Producer do
 
   defp start_worker(partition, %{topic: topic, brokers: brokers,
                                  leaders: leaders, workers: workers,
-                                 client_id: client_id,
-                                 required_acks: required_acks,
-                                 timeout: timeout} = state) do
+                                 worker_opts: worker_opts} = state) do
     leader = HashDict.get(leaders, partition)
     broker = HashDict.get(brokers, leader)
     Logger.debug fn -> "Starting producer worker { topic: #{topic}, partition: #{partition}, broker: #{inspect broker} } ..." end
-    {:ok, pid} = Cafex.Producer.Worker.start_link(broker, topic, partition, client_id: client_id,
-                                                                        required_acks: required_acks,
-                                                                              timeout: timeout)
+    {:ok, pid} = Cafex.Producer.Worker.start_link(broker, topic, partition, worker_opts)
     %{state | workers: HashDict.put(workers, partition, pid)}
   end
 end

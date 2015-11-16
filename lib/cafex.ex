@@ -12,6 +12,10 @@ defmodule Cafex do
     Cafex.Producer.produce(producer, value, opts)
   end
 
+  def async_produce(producer, value, opts \\ []) do
+    Cafex.Producer.async_produce(producer, value, opts)
+  end
+
   def fetch(topic_pid, partition, offset) when is_integer(partition)
                                            and is_integer(offset) do
     Cafex.Topic.Server.fetch topic_pid, partition, offset

@@ -7,9 +7,46 @@ Cafex
 iex> Application.start :cafex
 iex> {:ok, topic} = Cafex.start_topic "test", [{"127.0.0.1", 9092}]
 iex> {:ok, producer} = Cafex.start_producer topic, partitioner: MyPartitioner,
-                                                     client_id: "myproducer"
+                                                     client_id: "myproducer",
+                                                     acks: 1,
+                                                     batch_num: 100,
+                                                     linger_ms: 10
 iex> Cafex.produce producer, "message", key: "key"
+iex> Cafex.async_produce producer, "message", key: "key"
 ```
+
+### Producer options
+
+#### `partitioner`
+
+The partitioner for partitioning messages amongst sub-topics.
+The default partitioner is `Cafex.Partitioner.Random`.
+
+#### `client_id`
+
+The client id is a user-specified string sent in each request to help trace
+calls.  It should logically identify the application making the request.
+
+Default `cafex_producer`.
+
+#### `acks`
+
+The number of acknowledgments the producer requires the leader to have received
+before considering a request complete. This controls the durability of records
+that are sent.
+
+Default value is `1`.
+
+#### `batch_num`
+
+The number of messages to send in one batch when `linger_ms` is not zero.
+The producer will wait until either this number of messages are ready to send.
+
+#### `linger_ms`
+This setting is the same as `linger.ms` config in the new official producer configs.
+This setting defaults to 0 (i.e. no delay).
+
+> NOTE: If `linger_ms` is set to `0`, the `batch_num` will not take effect.
 
 ### Consumer
 
