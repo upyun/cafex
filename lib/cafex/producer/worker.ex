@@ -93,7 +93,16 @@ defmodule Cafex.Producer.Worker do
     end
   end
 
-  def terminate(_reason, %{conn: conn}) do
+  def terminate(reason, %{conn: conn, batches: batches}) do
+    case batches do
+      nil -> :ok
+      [] -> :ok
+      batches ->
+        Enum.each(batches, fn {from, _} ->
+          do_reply({from, {:error, reason}})
+        end)
+    end
+
     if conn, do: Connection.close(conn)
     :ok
   end
