@@ -5,7 +5,8 @@ defmodule Cafex.Protocol.Message do
             key: nil,
             offset: 0,
             magic_byte: 0,
-            attributes: 0
+            attributes: 0,
+            metadata: nil
 
   @type t :: %Cafex.Protocol.Message{ topic: binary,
                                       partition: integer,
@@ -13,7 +14,8 @@ defmodule Cafex.Protocol.Message do
                                       key: binary,
                                       offset: integer,
                                       magic_byte: integer,
-                                      attributes: integer }
+                                      attributes: integer,
+                                      metadata: term }
 
   def from_tuple({topic, partition, value}), do: from_tuple({topic, partition, value, nil})
   def from_tuple({topic, partition, value, key}) do

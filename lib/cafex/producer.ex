@@ -32,7 +32,8 @@ defmodule Cafex.Producer do
   def produce(pid, value, opts \\ []) do
     key        = Keyword.get(opts, :key)
     partition  = Keyword.get(opts, :partition)
-    message    = %Message{key: key, value: value, partition: partition}
+    metadata   = Keyword.get(opts, :metadata)
+    message    = %Message{key: key, value: value, partition: partition, metadata: metadata}
     worker_pid = GenServer.call pid, {:get_worker, message}
     Cafex.Producer.Worker.produce(worker_pid, message)
   end
