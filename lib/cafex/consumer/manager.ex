@@ -28,12 +28,18 @@ defmodule Cafex.Consumer.Manager do
 
   require Logger
 
+  alias Cafex.Topic.Server, as: Topic
+
   @zk_timeout 5000
+  @default_client_id "cafex"
 
   defmodule State do
     @moduledoc false
     defstruct group_name: nil,
+              client_id: nil,
+              topic_name: nil,
               topic_pid: nil,
+              feed_brokers: [],
               zk_servers: nil,
               zk_path: nil,
               zk_timeout: nil,
@@ -44,7 +50,6 @@ defmodule Cafex.Consumer.Manager do
               zk_online_node: nil,
               zk_balance_node: nil,
               handler: nil,
-              topic_name: nil,
               brokers: nil,
               leaders: nil,
               partitions: nil,
@@ -68,8 +73,8 @@ defmodule Cafex.Consumer.Manager do
   # API
   # ===================================================================
 
-  def start_link(name, topic_pid, opts \\ []) do
-    GenServer.start_link __MODULE__, [name, topic_pid, opts], name: name
+  def start_link(name, topic_name, opts \\ []) do
+    GenServer.start_link __MODULE__, [name, topic_name, opts], name: name
   end
 
   def offline(pid) do
@@ -88,12 +93,14 @@ defmodule Cafex.Consumer.Manager do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([name, topic_pid, opts]) do
+  def init([name, topic_name, opts]) do
     Process.flag(:trap_exit, true)
 
     cfg        = Application.get_env(:cafex, name, [])
+    client_id  = Util.get_config(opts, cfg, :client_id, @default_client_id)
     handler    = Util.get_config(opts, cfg, :handler)
     worker_cfg = Util.get_config(opts, cfg, :worker)
+    brokers    = Util.get_config(opts, cfg, :brokers)
     zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_servers = Keyword.get(zk_config, :servers, [{"127.0.0.1", 2181}])
                   |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end)
@@ -104,12 +111,15 @@ defmodule Cafex.Consumer.Manager do
     Logger.info fn -> "Starting consumer: #{group_name} ..." end
 
     state = %State{ group_name: group_name,
-                    topic_pid: topic_pid,
+                    client_id: client_id,
+                    topic_name: topic_name,
+                    feed_brokers: brokers,
                     handler: handler,
                     worker_cfg: worker_cfg,
                     zk_servers: zk_servers,
                     zk_timeout: zk_timeout,
                     zk_path: zk_path }
+            |> start_topic_server
             |> load_metadata
             |> zk_connect
             |> zk_register
@@ -236,6 +246,10 @@ defmodule Cafex.Consumer.Manager do
   end
 
   # handle linked process EXIT
+  def handle_info({:EXIT, pid, reason}, %{topic_pid: pid} = state) do
+    Logger.warn "Topic server exit: #{inspect reason}"
+    {:noreply, start_topic_server(state)}
+  end
   def handle_info({:EXIT, pid, reason}, %{zk_pid: pid} = state) do
     Logger.error "ZooKeeper connection exit with reason: #{inspect reason}, stop cusumer."
     {:stop, reason, %{state|zk_pid: nil}}
@@ -284,6 +298,7 @@ defmodule Cafex.Consumer.Manager do
           |> stop_workers
           |> zk_close   # if zk close before wokers stopped, workers cannot release lock
           |> stop_offset_coordinator
+          |> stop_topic_server
     :ok
   end
 
@@ -291,10 +306,20 @@ defmodule Cafex.Consumer.Manager do
   #  Internal functions
   # ===================================================================
 
+  defp start_topic_server(%{topic_name: topic_name, feed_brokers: brokers, client_id: client_id} = state) do
+    {:ok, pid} = Topic.start_link(topic_name, brokers, client_id: client_id)
+    %{state|topic_pid: pid}
+  end
+
+  defp stop_topic_server(%{topic_pid: nil} = state), do: state
+  defp stop_topic_server(%{topic_pid: pid} = state) do
+    Topic.stop(pid)
+    %{state|topic_pid: nil}
+  end
+
   defp load_metadata(%{topic_pid: topic_pid} = state) do
-    metadata = Cafex.Topic.Server.metadata topic_pid
-    %{state | topic_name: metadata.name,
-              brokers: metadata.brokers,
+    metadata = Topic.metadata topic_pid
+    %{state | brokers: metadata.brokers,
               leaders: metadata.leaders,
               partitions: metadata.partitions}
   end
@@ -523,7 +548,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp get_offset(topic_pid, partition) when is_pid(topic_pid) and is_integer(partition) do
-    case Cafex.Topic.Server.offset(topic_pid, partition, :earliest, 1) do
+    case Topic.offset(topic_pid, partition, :earliest, 1) do
       {:ok, %{offsets: [{_, [%{error: :no_error, offsets: [offset]}]}]}} ->
         {:ok, {offset, ""}}
       {:ok, %{offsets: [{_, [%{error: :no_error, offsets: []}]}]}} ->

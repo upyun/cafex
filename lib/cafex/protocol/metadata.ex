@@ -24,13 +24,13 @@ defmodule Cafex.Protocol.Metadata do
     @type t :: %Response{brokers: [%{node_id: integer,
                                      host: binary,
                                      port: 0..65535}],
-                                     topics: [%{error: Cafex.Protocol.Errors.t,
-                                                name: binary,
-                                                partitions: [%{error: Cafex.Protocol.Errors.t,
-                                                               partition_id: integer,
-                                                               leader: integer,
-                                                               replicas: [integer],
-                                                               isrs: [integer]}]}]}
+                         topics: [%{error: Cafex.Protocol.Errors.t,
+                                    name: binary,
+                                    partitions: [%{error: Cafex.Protocol.Errors.t,
+                                                   partition_id: integer,
+                                                   leader: integer,
+                                                   replicas: [integer],
+                                                   isrs: [integer]}]}]}
   end
 
   def decode(data) when is_binary(data) do

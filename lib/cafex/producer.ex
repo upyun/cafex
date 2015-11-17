@@ -6,10 +6,13 @@ defmodule Cafex.Producer do
   require Logger
 
   alias Cafex.Protocol.Message
+  alias Cafex.Topic.Server, as: Topic
 
   defmodule State do
     defstruct topic: nil,
+              topic_name: nil,
               topic_pid: nil,
+              feed_brokers: [],
               partitioner: nil,
               partitioner_state: nil,
               brokers: nil,
@@ -25,8 +28,8 @@ defmodule Cafex.Producer do
   # API
   # ===================================================================
 
-  def start_link(topic_pid, opts) do
-    GenServer.start_link __MODULE__, [topic_pid, opts]
+  def start_link(topic_name, brokers, opts) do
+    GenServer.start_link __MODULE__, [topic_name, brokers, opts]
   end
 
   def produce(pid, value, opts \\ []) do
@@ -42,13 +45,15 @@ defmodule Cafex.Producer do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([topic_pid, opts]) do
+  def init([topic_name, brokers, opts]) do
     Process.flag(:trap_exit, true)
 
     client_id = Keyword.get(opts, :client_id, "cafex_producer")
 
-    state = %State{topic_pid: topic_pid,
-                   client_id: client_id} |> load_metadata
+    state = %State{topic_name: topic_name,
+                   feed_brokers: brokers,
+                   client_id: client_id} |> start_topic_server
+                                         |> load_metadata
                                          |> start_workers
 
     partitioner = Keyword.get(opts, :partitioner, Cafex.Partitioner.Random)
@@ -63,7 +68,11 @@ defmodule Cafex.Producer do
     {:reply, worker, state}
   end
 
-  def handle_info({:"EXIT", pid, reason}, %{workers: workers} = state) do
+  def handle_info({:EXIT, pid, reason}, %{topic_pid: pid} = state) do
+    Logger.warn "Topic server exit: #{inspect reason}"
+    {:noreply, start_topic_server(state)}
+  end
+  def handle_info({:EXIT, pid, reason}, %{workers: workers} = state) do
     Logger.error "Producer worker down: #{inspect reason}"
     state =
       case Enum.find(workers, fn {_k, v} -> v == pid end) do
@@ -75,10 +84,11 @@ defmodule Cafex.Producer do
     {:noreply, state}
   end
 
-  def terminate(_reason, %{workers: workers}) do
+  def terminate(_reason, %{workers: workers}=state) do
     for {_, pid} <- workers do
       Cafex.Producer.Worker.stop pid
     end
+    stop_topic_server state
     :ok
   end
 
@@ -101,7 +111,7 @@ defmodule Cafex.Producer do
   end
 
   defp load_metadata(%{topic_pid: topic_pid} = state) do
-    metadata = Cafex.Topic.Server.metadata topic_pid
+    metadata = Topic.metadata topic_pid
 
     %{state | topic: metadata.name,
               brokers: metadata.brokers,
@@ -127,5 +137,16 @@ defmodule Cafex.Producer do
                                                                         required_acks: required_acks,
                                                                               timeout: timeout)
     %{state | workers: HashDict.put(workers, partition, pid)}
+  end
+
+  defp start_topic_server(%{topic_name: topic_name, feed_brokers: brokers, client_id: client_id} = state) do
+    {:ok, pid} = Topic.start_link(topic_name, brokers, client_id: client_id)
+    %{state|topic_pid: pid}
+  end
+
+  defp stop_topic_server(%{topic_pid: nil} = state), do: state
+  defp stop_topic_server(%{topic_pid: pid} = state) do
+    Topic.stop(pid)
+    %{state|topic_pid: nil}
   end
 end

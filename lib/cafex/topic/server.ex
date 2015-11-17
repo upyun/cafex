@@ -44,6 +44,10 @@ defmodule Cafex.Topic.Server do
     GenServer.call pid, {:offset, partition, time, max}
   end
 
+  def stop(pid) do
+    GenServer.call pid, :stop
+  end
+
   # ===================================================================
   #  GenServer callbacks
   # ===================================================================
@@ -77,6 +81,10 @@ defmodule Cafex.Topic.Server do
   def handle_call({:offset, partition, time, max}, _from, state) do
     reply = get_offset(partition, time, max, state)
     {:reply, reply, state}
+  end
+
+  def handle_call(:stop, _from, state) do
+    {:stop, :normal, state}
   end
 
   def handle_info({:timeout, tref, :close_conn}, %{timer: tref} = state) do

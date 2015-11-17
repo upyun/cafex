@@ -4,8 +4,8 @@ defmodule Cafex do
     Cafex.Topic.Supervisor.start_topic(name, brokers, opts)
   end
 
-  def start_producer(topic_pid, opts \\ []) do
-    Cafex.Producer.Supervisor.start_producer(topic_pid, opts)
+  def start_producer(topic_name, brokers, opts \\ []) do
+    Cafex.Producer.Supervisor.start_producer(topic_name, brokers, opts)
   end
 
   def produce(producer, value, opts \\ []) do
@@ -25,8 +25,8 @@ defmodule Cafex do
   * zookeeper  - zookeeper config
   * handler    - handler module and initialize args
   """
-  def start_consumer(name, topic_pid, opts \\ []) do
-    Cafex.Consumer.Supervisor.start_consumer(name, topic_pid, opts)
+  def start_consumer(name, topic_name, opts \\ []) do
+    Cafex.Consumer.Supervisor.start_consumer(name, topic_name, opts)
   end
 
   def offline_consumer(name) when is_atom(name) do

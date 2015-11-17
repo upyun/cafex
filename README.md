@@ -5,9 +5,10 @@ Cafex
 
 ```elixir
 iex> Application.start :cafex
-iex> {:ok, topic} = Cafex.start_topic "test", [{"127.0.0.1", 9092}]
-iex> {:ok, producer} = Cafex.start_producer topic, partitioner: MyPartitioner,
-                                                     client_id: "myproducer"
+iex> topic_name = "test_topic"
+iex> brokers = [{"127.0.0.1", 9092}]
+iex> {:ok, producer} = Cafex.start_producer topic_name, brokers, partitioner: MyPartitioner,
+                                                                 client_id: "myproducer"
 iex> Cafex.produce producer, "message", key: "key"
 ```
 
@@ -24,11 +25,13 @@ defmodule MyConsumer do
 end
 
 iex> Application.start :cafex
-iex> {:ok, pid} = Cafex.start_topic "test", [{"127.0.0.1", 9092}]
-iex> {:ok, consumer} = Cafex.start_consumer :myconsumer, pid, client_id: "myconsumer",
-                                                              zookeeper: [servers: [{"192.168.99.100", 2181}],
-                                                                          path: "/cafex"],
-                                                              handler: {MyConsumer, []}
+iex> topic_name = "test_topic"
+iex> brokers = [{"127.0.0.1", 9092}]
+iex> {:ok, consumer} = Cafex.start_consumer :myconsumer, topic_name, client_id: "myconsumer",
+                                                                     brokers: brokers,
+                                                                     zookeeper: [servers: [{"192.168.99.100", 2181}],
+                                                                                 path: "/cafex"],
+                                                                     handler: {MyConsumer, []}
 ```
 
 `start_consumer` 的 `options` 可以放在 `config/config.exs` 中：
@@ -36,6 +39,7 @@ iex> {:ok, consumer} = Cafex.start_consumer :myconsumer, pid, client_id: "mycons
 ```elixir
 config :cafex, :myconsumer,
   client_id: "cafex",
+  brokers: [{"192.168.99.100", 9092}, {"192.168.99.101", 9092}]
   zookeeper: [
     servers: [{"192.168.99.100", 2181}],
     path: "/elena/cafex"

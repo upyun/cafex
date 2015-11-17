@@ -11,7 +11,7 @@ defmodule Cafex.Topic.Supervisor do
 
   def init([]) do
     children = [
-      worker(Cafex.Topic.Server, [], restart: :permanent,
+      worker(Cafex.Topic.Server, [], restart: :temporary,
                                     shutdown: 2000)
     ]
     supervise children, strategy: :simple_one_for_one,

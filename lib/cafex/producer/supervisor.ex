@@ -5,8 +5,8 @@ defmodule Cafex.Producer.Supervisor do
     Supervisor.start_link __MODULE__, [], name: __MODULE__
   end
 
-  def start_producer(topic, opts) do
-    Supervisor.start_child __MODULE__, [topic, opts]
+  def start_producer(topic, brokers, opts) do
+    Supervisor.start_child __MODULE__, [topic, brokers, opts]
   end
 
   def init([]) do
