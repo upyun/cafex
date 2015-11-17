@@ -5,11 +5,15 @@ defmodule Cafex.Producer.Worker do
     @moduledoc false
     defstruct broker: nil,
               topic: nil,
-              topic_server: nil,
               partition: nil,
               client_id: nil,
               conn: nil,
-              required_acks: 1,
+              acks: 1,
+              batch_num: nil,
+              batches: [],
+              # max_request_size: nil,
+              linger_ms: 0,
+              timer: nil,
               timeout: 60000
   end
 
@@ -21,12 +25,16 @@ defmodule Cafex.Producer.Worker do
   # API
   # ===================================================================
 
-  def start_link(broker, topic, partition, topic_server, opts \\ []) do
-    GenServer.start_link __MODULE__, [broker, topic, partition, topic_server, opts]
+  def start_link(broker, topic, partition, opts \\ []) do
+    GenServer.start_link __MODULE__, [broker, topic, partition, opts]
   end
 
   def produce(pid, message) do
     GenServer.call pid, {:produce, message}
+  end
+
+  def async_produce(pid, message) do
+    GenServer.cast pid, {:produce, message}
   end
 
   def stop(pid) do
@@ -37,17 +45,22 @@ defmodule Cafex.Producer.Worker do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([{host, port} = broker, topic, partition, topic_server, opts]) do
-    required_acks = Keyword.get(opts, :required_acks, 1)
+  def init([{host, port} = broker, topic, partition, opts]) do
+    acks          = Keyword.get(opts, :acks, 1)
     timeout       = Keyword.get(opts, :timeout, 60000)
     client_id     = Keyword.get(opts, :client_id, "cafex")
+    batch_num        = Keyword.get(opts, :batch_num)
+    # max_request_size = Keyword.get(opts, :max_request_size)
+    linger_ms        = Keyword.get(opts, :linger_ms)
 
     state = %State{ broker: broker,
                     topic: topic,
-                    topic_server: topic_server,
                     partition: partition,
                     client_id: client_id,
-                    required_acks: required_acks,
+                    acks: acks,
+                    batch_num: batch_num,
+                    # max_request_size: max_request_size,
+                    linger_ms: linger_ms,
                     timeout: timeout }
 
     case Connection.start_link(host, port, client_id: client_id) do
@@ -58,14 +71,38 @@ defmodule Cafex.Producer.Worker do
     end
   end
 
-  def handle_call({:produce, message}, _from, state) do
-    do_produce(message, state)
+  def handle_call({:produce, message}, from, state) do
+    maybe_produce(message, from, state)
   end
   def handle_call(:stop, _from, state) do
     {:stop, :normal, state}
   end
 
-  def terminate(_reason, %{conn: conn}) do
+  def handle_cast({:produce, message}, state) do
+    maybe_produce(message, nil, state)
+  end
+
+  def handle_info({:timeout, timer, {:linger_timeout, from}}, %{timer: timer, batches: batches} = state) do
+    result = batches |> Enum.reverse |> do_produce(state)
+    state = %{state|timer: nil, batches: []}
+    case result do
+      :ok ->
+        {:noreply, state}
+      {:error, reason} ->
+        {:stop, reason, state}
+    end
+  end
+
+  def terminate(reason, %{conn: conn, batches: batches}) do
+    case batches do
+      nil -> :ok
+      [] -> :ok
+      batches ->
+        Enum.each(batches, fn {from, _} ->
+          do_reply({from, {:error, reason}})
+        end)
+    end
+
     if conn, do: Connection.close(conn)
     :ok
   end
@@ -74,25 +111,71 @@ defmodule Cafex.Producer.Worker do
   #  Internal functions
   # ===================================================================
 
-  defp do_produce(message, %{topic: topic,
+  defp maybe_produce(message, from, %{linger_ms: linger_ms} = state) when is_integer(linger_ms) and linger_ms <= 0 do
+    case do_produce([{from, message}], state) do
+      :ok -> {:noreply, state}
+      {:error, reason} -> {:stop, reason, state}
+    end
+  end
+  defp maybe_produce(message, from, %{batches: batches, batch_num: batch_num} = state) when length(batches) + 1 >= batch_num do
+    result = [{from, message}|batches] |> Enum.reverse |> do_produce(state)
+    %{state|batches: []}
+    case result do
+      :ok -> {:noreply, state}
+      {:error, reason} -> {:stop, reason, state}
+    end
+  end
+  defp maybe_produce(message, from, %{linger_ms: linger_ms, batches: batches, timer: timer} = state) do
+    timer = case timer do
+      nil ->
+        timer = :erlang.start_timer(linger_ms, self, {:linger_timeout, from})
+      timer ->
+        timer
+    end
+    {:noreply, %{state|batches: [{from, message}|batches], timer: timer}}
+  end
+
+  defp do_produce(message_pairs, state) do
+    case do_request(message_pairs, state) do
+      {:ok, replies} ->
+        Enum.each(replies, &do_reply/1)
+        :ok
+      {:error, reason} ->
+        Enum.each(message_pairs, &(do_reply({&1, reason})))
+        {:error, reason}
+    end
+  end
+
+  defp do_request(message_pairs, %{topic: topic,
                              partition: partition,
-                             required_acks: required_acks,
+                             acks: acks,
                              timeout: timeout,
                              conn: conn} = state) do
 
-    message = %{message | topic: topic, partition: partition}
+    messages = Enum.map(message_pairs, fn {_from, message} ->
+      %{message | topic: topic, partition: partition}
+    end)
 
-    request = %Request{ required_acks: required_acks,
+    request = %Request{ required_acks: acks,
                         timeout: timeout,
-                        messages: [message] }
+                        messages: messages }
 
     case Connection.request(conn, request, Produce) do
-      {:ok, [{^topic, [%{error: :no_error, offset: offset, partition: partition}]}]} ->
-        {:reply, {:ok, partition, offset}, state}
-      {:ok, [{^topic, [%{error: error}]}]} ->
-        {:reply, {:error, error}, state}
-      {:error, reason} = err ->
-        {:stop, reason, err, state}
+      {:ok, [{^topic, [%{error: :no_error}=partition]}]} ->
+        replies = Enum.map(message_pairs, fn {from, _} ->
+          {from, :ok}
+        end)
+        {:ok, replies}
+      {:ok, [{^topic, [%{error: reason}]}]} ->
+        replies = Enum.map(message_pairs, fn {from, _} ->
+          {from, {:error, reason}}
+        end)
+        {:ok, replies}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp do_reply({nil, _reply}), do: :ok
+  defp do_reply({from, reply}), do: GenServer.reply(from, reply)
 end
