@@ -34,7 +34,7 @@ defmodule Cafex.Integration.Topic.ServerTest do
 
     Enum.map(0..metadata.partitions - 1, fn partition ->
       assert {:ok, %Offset.Response{offsets: [{^topic_name, [%{error: :no_error, offsets: [offset], partition: ^partition}]}]}} = Server.offset(pid, partition, :earliest, 1)
-      assert {:ok, %Fetch.Response{topics: [{^topic_name, [%{error: :no_error, hwm_offset: _, messages: messages, partition: ^partition}]}]}} = Server.fetch(pid, partition, offset)
+      assert {:ok, %Fetch.Response{topics: [{^topic_name, [%{error: :no_error, hwm_offset: _, messages: _messages, partition: ^partition}]}]}} = Server.fetch(pid, partition, offset)
     end)
   end
 end

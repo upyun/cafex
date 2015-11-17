@@ -82,7 +82,7 @@ defmodule Cafex.Producer.Worker do
     maybe_produce(message, nil, state)
   end
 
-  def handle_info({:timeout, timer, {:linger_timeout, from}}, %{timer: timer, batches: batches} = state) do
+  def handle_info({:timeout, timer, :linger_timeout}, %{timer: timer, batches: batches} = state) do
     result = batches |> Enum.reverse |> do_produce(state)
     state = %{state|timer: nil, batches: []}
     case result do
@@ -128,7 +128,7 @@ defmodule Cafex.Producer.Worker do
   defp maybe_produce(message, from, %{linger_ms: linger_ms, batches: batches, timer: timer} = state) do
     timer = case timer do
       nil ->
-        timer = :erlang.start_timer(linger_ms, self, {:linger_timeout, from})
+        :erlang.start_timer(linger_ms, self, :linger_timeout)
       timer ->
         timer
     end
@@ -147,10 +147,10 @@ defmodule Cafex.Producer.Worker do
   end
 
   defp do_request(message_pairs, %{topic: topic,
-                             partition: partition,
-                             acks: acks,
-                             timeout: timeout,
-                             conn: conn} = state) do
+                               partition: partition,
+                                    acks: acks,
+                                 timeout: timeout,
+                                    conn: conn}) do
 
     messages = Enum.map(message_pairs, fn {_from, message} ->
       %{message | topic: topic, partition: partition}
@@ -161,7 +161,7 @@ defmodule Cafex.Producer.Worker do
                         messages: messages }
 
     case Connection.request(conn, request, Produce) do
-      {:ok, [{^topic, [%{error: :no_error}=partition]}]} ->
+      {:ok, [{^topic, [%{error: :no_error, partition: ^partition}]}]} ->
         replies = Enum.map(message_pairs, fn {from, _} ->
           {from, :ok}
         end)
