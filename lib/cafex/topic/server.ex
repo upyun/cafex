@@ -160,6 +160,11 @@ defmodule Cafex.Topic.Server do
     request = %MetadataRequest{ topics: [topic] }
 
     case Connection.request(conn_pid, request, Metadata) do
+      {:ok, %{topics: [%{error: :unknown_topic_or_partition}]}} ->
+        throw :unknown_topic_or_partition
+      {:ok, %{topics: [%{error: :leader_not_available}]}} ->
+        :timer.sleep(100)
+        fetch_metadata(state)
       {:ok, metadata} ->
         metadata = extract_metadata(metadata)
         brokers  = metadata.brokers
