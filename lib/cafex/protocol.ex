@@ -156,6 +156,9 @@ defmodule Cafex.Protocol do
               attributes: attributes,
               offset: offset}, rest}
   end
+  def decode_message(rest) do
+    {nil, rest}
+  end
 
   @doc """
   Encode MessageSet
@@ -176,6 +179,11 @@ defmodule Cafex.Protocol do
   defp decode_message_set_item(<<>>, acc), do: Enum.reverse(acc)
   defp decode_message_set_item(data, acc) do
     {msg, rest} = decode_message(data)
-    decode_message_set_item(rest, [msg|acc])
+    case msg do
+      nil ->
+        decode_message_set_item(<<>>, acc)
+      msg ->
+        decode_message_set_item(rest, [msg|acc])
+    end
   end
 end
