@@ -23,7 +23,7 @@ defmodule Cafex.Consumer.Worker do
               buffer: [],
               hwm_offset: 0,
               batch_size: 50,
-              manager: nil,
+              coordinator: nil,
               handler: nil,
               handler_data: nil
   end
@@ -32,14 +32,14 @@ defmodule Cafex.Consumer.Worker do
   alias Cafex.Connection
   alias Cafex.Protocol.Fetch
   alias Cafex.Protocol.Fetch.Request, as: FetchRequest
-  alias Cafex.Consumer.Manager
+  alias Cafex.Consumer.Coordinator
 
   # ===================================================================
   # API
   # ===================================================================
 
-  def start_link(manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts \\ []) do
-    :gen_fsm.start_link __MODULE__, [manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts], []
+  def start_link(coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts \\ []) do
+    :gen_fsm.start_link __MODULE__, [coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts], []
   end
 
   def stop(pid) do
@@ -50,15 +50,15 @@ defmodule Cafex.Consumer.Worker do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, nil]) do
-    init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, []])
+  def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, nil]) do
+    init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, []])
   end
-  def init([manager, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
+  def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
     state = %State{topic: topic,
                    group: group,
                    partition: partition,
                    broker: broker,
-                   manager: manager,
+                   coordinator: coordinator,
                    handler: handler,
                    zk_pid: zk_pid,
                    zk_path: zk_path,
@@ -97,10 +97,10 @@ defmodule Cafex.Consumer.Worker do
   def prepare(:timeout, %{partition: partition,
                           broker: {host, port},
                           handler: {handler, args},
-                          manager: manager} = state) do
+                          coordinator: coordinator} = state) do
     {:ok, conn} = Connection.start_link(host, port)
     {:ok, data} = handler.init(args)
-    {:ok, {offset, _}} = Manager.offset_fetch(manager, partition)
+    {:ok, {offset, _}} = Coordinator.offset_fetch(coordinator, partition)
     {:next_state, :consuming, %{state | conn: conn,
                                         hwm_offset: offset,
                                         handler: handler,
@@ -222,13 +222,13 @@ defmodule Cafex.Consumer.Worker do
     do_consume(c - 1, %{state | buffer: rest})
   end
 
-  defp handle_message(%{offset: offset} = message, %{manager: manager,
+  defp handle_message(%{offset: offset} = message, %{coordinator: coordinator,
                                                      topic: topic,
                                                      partition: partition,
                                                      handler: handler,
                                                      handler_data: handler_data} = state) do
     {:ok, data} = handler.consume(%{message | topic: topic, partition: partition}, handler_data)
-    Manager.offset_commit(manager, partition, offset + 1)
+    Coordinator.offset_commit(coordinator, partition, offset + 1)
     %{state | handler_data: data}
   end
 end

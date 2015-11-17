@@ -28,8 +28,6 @@ defmodule Cafex.Consumer.Manager do
 
   require Logger
 
-  alias Cafex.Topic.Server, as: Topic
-
   @zk_timeout 5000
   @default_client_id "cafex"
 
@@ -65,9 +63,8 @@ defmodule Cafex.Consumer.Manager do
   alias Cafex.Util
   alias Cafex.Connection
   alias Cafex.Protocol.ConsumerMetadata
-  alias Cafex.Protocol.OffsetFetch
-  alias Cafex.Protocol.OffsetCommit
   alias Cafex.Consumer.Worker
+  alias Cafex.Topic.Server, as: Topic
 
   # ===================================================================
   # API
@@ -79,14 +76,6 @@ defmodule Cafex.Consumer.Manager do
 
   def offline(pid) do
     GenServer.cast pid, :offline
-  end
-
-  def offset_commit(pid, partition, offset, metadata \\ "") do
-    GenServer.call pid, {:offset_commit, partition, offset, metadata}
-  end
-
-  def offset_fetch(pid, partition) do
-    GenServer.call pid, {:offset_fetch, partition}
   end
 
   # ===================================================================
@@ -129,37 +118,6 @@ defmodule Cafex.Consumer.Manager do
             |> restart_workers
 
     {:ok, state}
-  end
-
-  def handle_call({:offset_commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
-    {:reply, {:error, :unknown_partition}, state}
-  end
-  def handle_call({:offset_commit, partition, offset, metadata}, _from, %{group_name: group,
-                                                                          topic_name: topic,
-                                                                          offset_storage: storage,
-                                                                          coordinator: coordinator} = state) do
-    reply = offset_commit(storage, coordinator, group, topic, partition, offset, metadata)
-    {:reply, reply, state}
-  end
-
-  def handle_call({:offset_fetch, partition}, _from, %{partitions: partitions} = state) when partition >= partitions do
-    {:reply, {:error, :unknown_partition}, state}
-  end
-  def handle_call({:offset_fetch, partition}, _from, %{group_name: group,
-                                                       topic_name: topic,
-                                                       topic_pid: topic_pid,
-                                                       offset_storage: storage,
-                                                       coordinator: coordinator} = state) do
-    case offset_fetch(storage, coordinator, group, topic, partition) do
-      {:ok, {-1, _}} ->
-        {:reply, get_offset(topic_pid, partition), state}
-      {:ok, _} = reply ->
-        {:reply, reply, state}
-      {:error, :unknown_topic_or_partition} ->
-        {:reply, get_offset(topic_pid, partition), state}
-      error ->
-        {:reply, error, state}
-    end
   end
 
   def handle_cast(:offline, %{zk_pid: pid, zk_offline_path: offline_path} = state) do
@@ -532,12 +490,13 @@ defmodule Cafex.Consumer.Manager do
                                     leaders: leaders,
                                     handler: handler,
                                     worker_cfg: worker_cfg,
+                                    coordinator: coordinator,
                                     zk_pid: zk_pid,
                                     zk_path: zk_path}) do
     Logger.info fn -> "Starting consumer worker: #{topic}:#{group}:#{partition}" end
     leader = HashDict.get(leaders, partition)
     broker = HashDict.get(brokers, leader)
-    Worker.start_link(self, handler, topic, group, partition, broker, zk_pid, zk_path, worker_cfg)
+    Worker.start_link(coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, worker_cfg)
   end
 
   defp stop_workers(%{workers: workers} = state) do
@@ -547,63 +506,20 @@ defmodule Cafex.Consumer.Manager do
     %{state | workers: HashDict.new, r_workers: HashDict.new}
   end
 
-  defp get_offset(topic_pid, partition) when is_pid(topic_pid) and is_integer(partition) do
-    case Topic.offset(topic_pid, partition, :earliest, 1) do
-      {:ok, %{offsets: [{_, [%{error: :no_error, offsets: [offset]}]}]}} ->
-        {:ok, {offset, ""}}
-      {:ok, %{offsets: [{_, [%{error: :no_error, offsets: []}]}]}} ->
-        {:ok, {0, ""}}
-      {:ok, %{offsets: [{_, [%{error: error}]}]}} ->
-        {:error, error}
-      error ->
-        error
-    end
-  end
-
-  defp offset_fetch(storage, coordinator_pid, group, topic, partition) do
-    request = %OffsetFetch.Request{consumer_group: group,
-                                   topics: [{topic, [partition]}]}
-    request = case storage do
-      :zookeeper -> %{request | api_version: 0}
-      :kafka     -> %{request | api_version: 1}
-    end
-
-    case Connection.request(coordinator_pid, request, OffsetFetch) do
-      {:ok, %{topics: [{^topic, [{^partition, offset, metadata, :no_error}]}]}} ->
-        {:ok, {offset, metadata}}
-      {:ok, %{topics: [{^topic, [{^partition, _, _, error}]}]}} ->
-        {:error, error}
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp offset_commit(storage, coordinator_pid, group, topic, partition, offset, metadata) do
-    request = %OffsetCommit.Request{consumer_group: group,
-                                    topics: [{topic, [{partition, offset, metadata}]}]}
-    request = case storage do
-      :zookeeper -> %{request | api_version: 0}
-      :kafka     -> %{request | api_version: 1}
-    end
-    case Connection.request(coordinator_pid, request, OffsetCommit) do
-      {:ok, %{topics: [{^topic, [{^partition, :no_error}]}]}} ->
-        :ok
-      {:ok, %{topics: [{^topic, [{^partition, error}]}]}} ->
-        {:error, error}
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp start_offset_coordinator(%{group_name: group, brokers: brokers} = state) do
+  defp start_offset_coordinator(%{group_name: group,
+                                     brokers: brokers,
+                                   topic_pid: topic_pid,
+                                  partitions: partitions,
+                                  topic_name: topic_name,
+                              offset_storage: offset_storage} = state) do
     {:ok, {host, port}} = get_coordinator(group, HashDict.values(brokers))
-    {:ok, pid} = Connection.start_link(host, port)
+    {:ok, pid} = Cafex.Consumer.Coordinator.start_link({host, port}, topic_pid, partitions, group, topic_name, offset_storage)
     %{state | coordinator: pid}
   end
 
   defp stop_offset_coordinator(%{coordinator: nil} = state), do: state
   defp stop_offset_coordinator(%{coordinator: pid} = state) do
-    Connection.close(pid)
+    Cafex.Consumer.Coordinator.stop(pid)
     %{state | coordinator: nil}
   end
 
