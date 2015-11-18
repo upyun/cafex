@@ -34,8 +34,8 @@ defmodule Cafex.Producer do
   # API
   # ===================================================================
 
-  def start_link(topic_name, brokers, opts) do
-    GenServer.start_link __MODULE__, [topic_name, brokers, opts]
+  def start_link(topic_name, opts) do
+    GenServer.start_link __MODULE__, [topic_name, opts]
   end
 
   def produce(pid, value, opts \\ []) do
@@ -60,10 +60,11 @@ defmodule Cafex.Producer do
   #  GenServer callbacks
   # ===================================================================
 
-  def init([topic_name, brokers, opts]) do
+  def init([topic_name, opts]) do
     Process.flag(:trap_exit, true)
 
     client_id        = Keyword.get(opts, :client_id, @default_client_id)
+    brokers          = Keyword.get(opts, :brokers)
     acks             = Keyword.get(opts, :acks, @default_acks)
     batch_num        = Keyword.get(opts, :batch_num, @default_batch_num)
     # max_request_size = Keyword.get(opts, :max_request_size, @default_max_request_size)

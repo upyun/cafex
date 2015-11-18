@@ -7,11 +7,12 @@ Cafex
 iex> Application.start :cafex
 iex> topic_name = "test_topic"
 iex> brokers = [{"127.0.0.1", 9092}]
-iex> {:ok, producer} = Cafex.start_producer topic_name, brokers, partitioner: MyPartitioner,
-                                                                 client_id: "myproducer",
-                                                                 acks: 1,
-                                                                 batch_num: 100,
-                                                                 linger_ms: 10
+iex> {:ok, producer} = Cafex.start_producer topic_name, client_id: "myproducer",
+                                                        brokers: brokers,
+                                                        partitioner: MyPartitioner,
+                                                        acks: 1,
+                                                        batch_num: 100,
+                                                        linger_ms: 10
 iex> Cafex.produce producer, "message", key: "key"
 iex> Cafex.async_produce producer, "message", key: "key"
 ```

@@ -4,8 +4,8 @@ defmodule Cafex do
     Cafex.Topic.Supervisor.start_topic(name, brokers, opts)
   end
 
-  def start_producer(topic_name, brokers, opts \\ []) do
-    Cafex.Producer.Supervisor.start_producer(topic_name, brokers, opts)
+  def start_producer(topic_name, opts \\ []) do
+    Cafex.Producer.Supervisor.start_producer(topic_name, opts)
   end
 
   def produce(producer, value, opts \\ []) do
