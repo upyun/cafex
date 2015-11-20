@@ -4,6 +4,7 @@ defmodule Cafex.Consumer.Coordinator do
   require Logger
 
   defmodule State do
+    @moduledoc false
     defstruct        conn: nil,
                      host: nil,
                      port: nil,

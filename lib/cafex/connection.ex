@@ -3,6 +3,8 @@ defmodule Cafex.Connection do
 
   require Logger
 
+  alias Cafex.Protocol.Decoder
+
   defmodule State do
     @moduledoc false
     defstruct client_id: nil,
@@ -18,6 +20,12 @@ defmodule Cafex.Connection do
   @default_send_buffer 10_000_000
   @default_timeout 5000
 
+  @type conn     :: pid
+  @type request  :: Cafex.Protocol.Request.t
+  @type receiver :: {:fsm, pid} | {:server, pid} | pid
+  @type response :: Decoder.response
+  @type decoder  :: Decoder.decoder
+
   # ===================================================================
   # API
   # ===================================================================
@@ -30,10 +38,12 @@ defmodule Cafex.Connection do
     GenServer.start __MODULE__, [host, port, opts]
   end
 
+  @spec request(conn, request, decoder) :: :ok | {:ok, response} | {:error, term}
   def request(pid, request, decoder) do
     GenServer.call pid, {:request, request, decoder}
   end
 
+  @spec async_request(conn, request, decoder, receiver) :: :ok
   def async_request(pid, request, decoder, receiver) do
     GenServer.cast pid, {:async_request, request, decoder, receiver}
   end

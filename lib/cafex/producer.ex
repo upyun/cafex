@@ -25,6 +25,7 @@ defmodule Cafex.Producer do
   alias Cafex.Topic.Server, as: Topic
 
   defmodule State do
+    @moduledoc false
     defstruct topic: nil,
               topic_name: nil,
               topic_pid: nil,

@@ -2,13 +2,11 @@ defprotocol Cafex.Protocol.Request do
   @moduledoc """
   The Cafex.Protocol.Request protocol used by `Cafex.Protocol` module.
 
-  See: https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-Requests
+  Read [A Guide To The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-Requests) for more details.
   """
 
   @doc """
   Return the API Key of the request type
-
-  See: https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-Requests
   """
   def api_key(req)
 
