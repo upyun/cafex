@@ -9,7 +9,7 @@ defmodule Cafex.Supervisor do
 
   def init(_) do
     children = [
-      supervisor(Cafex.Topic.Supervisor, []),
+      supervisor(Cafex.Topic.Supervisor, []), # Deprecated
       supervisor(Cafex.Producer.Supervisor, []),
       supervisor(Cafex.Consumer.Supervisor, [])
     ]
