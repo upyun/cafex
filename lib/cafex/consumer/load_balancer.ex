@@ -34,7 +34,7 @@ defmodule Cafex.Consumer.LoadBalancer do
 
   More details see the source of this module or test.
   """
-  @spec rebalance(layout, partitions :: non_neg_integer) :: [layout]
+  @spec rebalance(layout, partitions :: non_neg_integer) :: layout
   def rebalance([], _partitions), do: []
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
