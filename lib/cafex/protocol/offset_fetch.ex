@@ -17,10 +17,17 @@ defmodule Cafex.Protocol.OffsetFetch do
               consumer_group: nil,
               topics: []
 
-    @type t :: %Request{api_version: 0 | 1,
+    @typedoc """
+    OffsetFetch API now support v0 (supported in 0.8.1 or later), v1 (supported in 0.8.2 or later)
+
+    To read more details, visit the [OffsetFetchRequest protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetFetchRequest).
+    """
+    @type api_version :: 0 | 1
+    @type topic :: {topic_name :: String.t, partitions :: [partition]}
+    @type partition :: integer
+    @type t :: %Request{api_version: api_version,
                         consumer_group: binary,
-                        topics: [{topic_name :: String.t,
-                                  partitions :: [integer]}]}
+                        topics: [topic]}
 
     def api_version(%{api_version: api_version}), do: api_version
     def encode(request) do
@@ -31,10 +38,11 @@ defmodule Cafex.Protocol.OffsetFetch do
   defmodule Response do
     defstruct topics: []
 
-    @type t :: %Response{topics: [{partition :: integer,
-                                      offset :: integer,
-                                    metadata :: String.t,
-                                      error  :: Cafex.Protocol.Errors.t}]}
+    @type topic :: {partition :: integer,
+                       offset :: integer,
+                     metadata :: String.t,
+                       error  :: Cafex.Protocol.Errors.t}
+    @type t :: %Response{topics: [topic]}
   end
 
   def encode(%{consumer_group: consumer_group, topics: topics}) do
@@ -49,6 +57,7 @@ defmodule Cafex.Protocol.OffsetFetch do
   end
   defp encode_partition(partition), do: << partition :: 32-signed >>
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
     %Response{topics: topics}

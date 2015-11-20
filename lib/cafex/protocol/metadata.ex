@@ -32,6 +32,7 @@ defmodule Cafex.Protocol.Metadata do
                                                    isrs: [integer]}]}]}
   end
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {brokers, rest} = Cafex.Protocol.decode_array(data, &parse_broker/1)
     {topics,     _} = Cafex.Protocol.decode_array(rest, &parse_topic/1)

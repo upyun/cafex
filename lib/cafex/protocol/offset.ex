@@ -9,11 +9,12 @@ defmodule Cafex.Protocol.Offset do
     defstruct replica_id: -1,
               topics: []
 
+    @type topic :: {topic :: String.t, partitions :: [partition]}
+    @type partition :: {partition :: integer,
+                        time :: integer,
+                        max_number_of_offsets :: integer}
     @type t :: %Request{replica_id: integer,
-                        topics: [{topic :: String.t,
-                                  partitions :: [{partition :: integer,
-                                                  time :: integer,
-                                                  max_number_of_offsets :: integer}]}]}
+                        topics: [topic]}
 
     def encode(request) do
       Cafex.Protocol.Offset.encode(request)
@@ -23,10 +24,11 @@ defmodule Cafex.Protocol.Offset do
   defmodule Response do
     defstruct offsets: []
 
-    @type t :: %Response{ offsets: [{topic :: String.t,
-                                     partitions :: [{partition :: integer,
-                                                     error :: Cafex.Protocol.Errors.t,
-                                                     offsets :: [integer]}]}]}
+    @type topic :: {topic :: String.t, partitions :: [partition]}
+    @type partition :: {partition :: integer,
+                        error :: Cafex.Protocol.Errors.t,
+                        offsets :: [integer]}
+    @type t :: %Response{ offsets: [topic]}
   end
 
   def encode(%Request{replica_id: replica_id, topics: topics}) do
@@ -43,6 +45,7 @@ defmodule Cafex.Protocol.Offset do
     << partition :: 32-signed, parse_time(time) :: 64-signed, max_number_of_offsets :: 32-signed >>
   end
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {offsets, _rest} = Cafex.Protocol.decode_array(data, &parse_topic/1)
     %Response{offsets: offsets}

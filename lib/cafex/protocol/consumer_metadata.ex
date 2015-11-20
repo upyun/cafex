@@ -31,6 +31,7 @@ defmodule Cafex.Protocol.ConsumerMetadata do
     Cafex.Protocol.encode_string(consumer_group)
   end
 
+  @spec decode(binary) :: Response.t
   def decode(<< error_code :: 16-signed,
                 coordinator_id :: 32-signed,
                 host_size :: 16-signed, coordinator_host :: size(host_size)-binary,

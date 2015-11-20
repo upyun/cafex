@@ -23,21 +23,25 @@ defmodule Cafex.Protocol.OffsetCommit do
               retention_time: nil,
               topics: []
 
-    @type t :: %Request{api_version: 0 | 1 | 2,
+    @typedoc """
+    OffsetCommit API now support v0 (supported in 0.8.1 or later), v1 (supported in 0.8.2 or later) and v2 (supported in 0.8.3 or later)
+
+    To read more details, visit the [OffsetCommitRequest protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
+    """
+    @type api_version :: 0 | 1 | 2
+    @type topic :: {topic_name :: String.t, partitions :: [partition]}
+    @type partition :: partition_v0 | partition_v1 | partition_v2
+    @type partition_v0 :: {partition :: integer, offset :: integer, metadata:: binary}
+    @type partition_v1 :: {partition :: integer, offset :: integer, timestamp :: integer, metadata :: binary}
+    @type partition_v2 :: {partition :: integer, offset :: integer, metadata:: binary}
+    @type t :: %Request{api_version: api_version,
                         consumer_group: String.t,
                         consumer_group_generation_id: integer | nil,
                         consumer_id: String.t | nil,
                         retention_time: integer | nil,
-                        topics: [{topic_name :: String.t,
-                                  partitions :: [{partition :: integer,
-                                                  offset :: integer,
-                                                  timestamp :: integer,
-                                                  metadata :: binary}
-                                                |{partition :: integer,
-                                                  offset :: integer,
-                                                  metadata:: binary}]}]}
+                        topics: [topic]}
 
-    def api_version(%{api_version: api_version}), do: api_version
+    def api_version(%Request{api_version: api_version}), do: api_version
     def encode(request) do
       Cafex.Protocol.OffsetCommit.encode(request)
     end
@@ -46,9 +50,9 @@ defmodule Cafex.Protocol.OffsetCommit do
   defmodule Response do
     defstruct topics: []
 
-    @type t :: %Response{ topics: [{topic_name :: String.t,
-                                    partitions :: [{partition :: integer,
-                                                        error :: Cafex.Protocol.Errors.t}]}] }
+    @type topic :: {topic_name :: String.t, partitions :: [partition]}
+    @type partition :: {partition :: integer, error :: Cafex.Protocol.Errors.t}
+    @type t :: %Response{ topics: [topic] }
   end
 
   def encode(request) do
@@ -140,6 +144,7 @@ defmodule Cafex.Protocol.OffsetCommit do
   end
   defp encode_partition_2(data), do: encode_partition_0(data)
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
     %Response{topics: topics}

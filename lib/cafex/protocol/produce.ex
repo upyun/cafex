@@ -19,6 +19,14 @@ defmodule Cafex.Protocol.Produce do
     end
   end
 
+  defmodule Response do
+    @type t :: [topic]
+    @type topic :: {topic :: String.t, [partition]}
+    @type partition :: %{partition: integer,
+                         error: Cafex.Protocol.Errors.t,
+                         offset: integer}
+  end
+
   def encode(%Request{required_acks: required_acks,
                       timeout: timeout,
                       messages: messages}) do
@@ -51,6 +59,7 @@ defmodule Cafex.Protocol.Produce do
              |> Map.to_list
   end
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {response, _} = Cafex.Protocol.decode_array(data, &parse_response/1)
     response

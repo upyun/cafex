@@ -113,6 +113,4 @@ Leader 获取 `consumers/online` 和 `consumers/offline` 下面的所有节点�
 ### TODO
 
 * Simple Consumer
-* 目前有很多参数写死在代码里的, 增加更多参数的配置选项
-* Add typespecs
 * Add tests

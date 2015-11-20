@@ -13,13 +13,14 @@ defmodule Cafex.Protocol.Fetch do
               min_bytes: 0,
               topics: []
 
+    @type topic :: {topic :: String.t, partitions :: [partition]}
+    @type partition :: {partition :: integer,
+                        offset :: integer,
+                        max_bytes :: integer}
     @type t :: %Request{replica_id: integer,
                         max_wait_time: integer,
                         min_bytes: integer,
-                        topics: [{topic :: String.t,
-                                  partitions :: [{partition :: integer,
-                                                  offset :: integer,
-                                                  max_bytes :: integer}]}]}
+                        topics: [topic]}
 
     def encode(request) do
       Cafex.Protocol.Fetch.encode(request)
@@ -28,11 +29,12 @@ defmodule Cafex.Protocol.Fetch do
 
   defmodule Response do
     defstruct topics: []
-    @type t :: %Response{topics: [{topic :: String.t,
-                                   partitions :: [{partition :: integer,
-                                                   error :: Cafex.Protocol.Errors.t,
-                                                   hwm_offset :: integer,
-                                                   messages :: [Message.t]}]}]}
+    @type topic :: {topic :: String.t, partitions :: [partition]}
+    @type partition :: %{partition: integer,
+                         error: Cafex.Protocol.Errors.t,
+                         hwm_offset: integer,
+                         messages: [Message.t]}
+    @type t :: %Response{topics: [topic]}
   end
 
   def encode(%{replica_id: replica_id, max_wait_time: max_wait_time,
@@ -50,6 +52,7 @@ defmodule Cafex.Protocol.Fetch do
     << partition :: 32-signed, offset :: 64-signed, max_bytes :: 32-signed >>
   end
 
+  @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
     {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
     %Response{topics: topics}
