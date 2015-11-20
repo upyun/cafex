@@ -1,5 +1,7 @@
 defmodule Cafex.Producer do
-  @moduledoc false
+  @moduledoc """
+  Kafka producer
+  """
 
   use GenServer
 
@@ -9,6 +11,13 @@ defmodule Cafex.Producer do
   # @default_max_request_size 1024 * 1024
   @default_linger_ms 0
   @default_timeout 60000
+
+  @typedoc "Options used by the `start_link/2` functions"
+  @type options :: [client_id: Cafex.client_id,
+                    brokers: [Cafex.broker],
+                    acks: -1..32767,
+                    batch_num: pos_integer,
+                    linger_ms: non_neg_integer]
 
   require Logger
 
@@ -34,10 +43,21 @@ defmodule Cafex.Producer do
   # API
   # ===================================================================
 
+  @spec start_link(topic_name :: String.t, opts :: options) :: GenServer.on_start
   def start_link(topic_name, opts) do
     GenServer.start_link __MODULE__, [topic_name, opts]
   end
 
+  @doc """
+  Produce message to kafka server in the synchronous way.
+
+  ## Options
+
+  * `:key` The key is an optional message key that was used for partition assignment. The key can be `nil`.
+  * `:partition` The partition that data is being published to.
+  * `:metadata` The metadata is used for partition in case of you wan't to use key to do that.
+  """
+  @spec produce(pid :: pid, value :: binary, opts :: [Keyword.t]) :: :ok | {:error, term}
   def produce(pid, value, opts \\ []) do
     key        = Keyword.get(opts, :key)
     partition  = Keyword.get(opts, :partition)
@@ -47,6 +67,14 @@ defmodule Cafex.Producer do
     Cafex.Producer.Worker.produce(worker_pid, message)
   end
 
+  @doc """
+  Produce message to kafka server in the asynchronous way.
+
+  ## Options
+
+  See `produce/3`
+  """
+  @spec async_produce(pid :: pid, value :: binary, opts :: [Keyword.t]) :: :ok
   def async_produce(pid, value, opts \\ []) do
     key        = Keyword.get(opts, :key)
     partition  = Keyword.get(opts, :partition)

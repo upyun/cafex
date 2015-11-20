@@ -1,4 +1,14 @@
 defmodule Cafex.Partitioner do
+  @moduledoc """
+  Partitioner implementation specification for Kafka produce request API.
+
+  ## Callbacks
+
+    * `init(partitions)`
+
+    * `partition(message, state)`
+  """
+
   use Behaviour
 
   alias Cafex.Message
@@ -7,5 +17,5 @@ defmodule Cafex.Partitioner do
 
   defcallback init(partitions :: integer) :: {:ok, state} | {:error, term}
 
-  defcallback partition(Message.t, state) :: {integer, state}
+  defcallback partition(message :: Message.t, state) :: {integer, state}
 end

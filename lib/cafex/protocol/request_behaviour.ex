@@ -11,24 +11,26 @@ defmodule Cafex.Protocol.RequestBehaviour do
   The Kafka server will always reply to a request except one case. If the
   produce request with a `0` required_acks, the server will not send any response.
 
+
+  ## Protocols
+
+  RequestBehaviour are required to implement the `Cafex.Protocol.Request` protocol.
+  We use `Cafex.Protocol` to implement a API Request.
   """
 
   use Behaviour
 
   alias Cafex.Protocol.Request
 
-  @type api_version :: 0 | 1 | 2
-  @type api_key :: 0..10
-
   @doc """
   Returen the api_key of a request.
   """
-  defcallback api_key(req :: Request.t) :: api_key
+  defcallback api_key(req :: Request.t) :: Cafex.Protocol.api_key
 
   @doc """
   Return the api_version the request will use.
   """
-  defcallback api_version(req :: Request.t) :: api_version
+  defcallback api_version(req :: Request.t) :: Cafex.Protocol.api_version
 
   @doc """
   Return whether the api request has a response.

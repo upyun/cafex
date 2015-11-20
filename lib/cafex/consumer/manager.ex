@@ -22,6 +22,35 @@ defmodule Cafex.Consumer.Manager do
      |  |  |  |  |-- cafex@192.168.0.3                       # persistent
      |  |  |-- locks
   ```
+
+  ## Options
+
+  All this options must not be ommitted, expect `:client_id`.
+
+    * `:client_id`
+    * `:handler`
+    * `:worker`
+    * `:brokers`
+    * `:zookeeper`
+
+  These options for `start_link/3` can be put under the `:cafex` key in the `config/config.exs` file:
+
+    ```elixir
+    config :cafex, :myconsumer,
+      client_id: "cafex",
+      brokers: [{"192.168.99.100", 9092}, {"192.168.99.101", 9092}]
+      zookeeper: [
+        servers: [{"192.168.99.100", 2181}],
+        path: "/cafex"
+      ],
+      handler: {MyConsumer, []}
+    ```
+
+  And then start the manager or start it in your supervisor tree
+
+    ```elixir
+    Cafex.Consumer.Manager.start_link(:myconsumer, "interested_topic")
+    ```
   """
 
   use GenServer
@@ -30,6 +59,13 @@ defmodule Cafex.Consumer.Manager do
 
   @zk_timeout 5000
   @default_client_id "cafex"
+
+  @typedoc "Options used by the `start_link/3` functions"
+  @type options :: [client_id: Cafex.client_id,
+                    handler: Cafex.Consumer.Worker.handler,
+                    worker: Cafex.Consumer.Worker.options,
+                    brokers: [Cafex.broker],
+                    zookeeper: Cafex.zookeeper ]
 
   defmodule State do
     @moduledoc false
@@ -70,10 +106,25 @@ defmodule Cafex.Consumer.Manager do
   # API
   # ===================================================================
 
+  @doc """
+  Start a consumer manager.
+
+  ## Arguments
+
+    * `name` Consumer group name
+    * `topic_name` The topic name which will be consumed
+    * `options` Starting options
+
+  ## Options
+
+  Read above.
+  """
+  @spec start_link(name :: atom, topic_name :: String.t, options) :: GenServer.on_start
   def start_link(name, topic_name, opts \\ []) do
     GenServer.start_link __MODULE__, [name, topic_name, opts], name: name
   end
 
+  @spec offline(pid) :: :ok
   def offline(pid) do
     GenServer.cast pid, :offline
   end

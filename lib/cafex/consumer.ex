@@ -1,12 +1,27 @@
 defmodule Cafex.Consumer do
+  @moduledoc """
+  Consumer worker implementation specification.
+
+  ## Callbacks
+
+    * `init(args)`
+
+    * `consume(message, state)`
+
+    * `terminate(state)`
+  """
+
   use Behaviour
 
-  defcallback init(args :: term) :: {:ok, term} | {:error, term}
+  @type state :: term
 
-  defcallback consume(Message.t, term) :: {:ok, term}
+  defcallback init(args :: term) :: {:ok, state} | {:error, reason :: term}
 
-  defcallback terminate(term) :: :ok
+  defcallback consume(message :: Message.t, state) :: {:ok, state}
 
+  defcallback terminate(state) :: :ok
+
+  @doc false
   defmacro __using__(_) do
     quote do
       @behaviour Cafex.Consumer

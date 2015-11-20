@@ -3,7 +3,34 @@ defmodule Cafex.Protocol do
   This module provide encode/decode functions for common structures in Kafka protocol.
 
   And also provide conveniences for implementing API request and the `Cafex.Protocol.Request`.
+
+  ## APIs
+
+    * `Cafex.Protocol.Metadata`
+      - `Cafex.Protocol.Metadata.Request`
+      - `Cafex.Protocol.Metadata.Response`
+    * `Cafex.Protocol.Produce`
+      - `Cafex.Protocol.Produce.Request`
+      - `Cafex.Protocol.Produce.Response`
+    * `Cafex.Protocol.Fetch`
+      - `Cafex.Protocol.Fetch.Request`
+      - `Cafex.Protocol.Fetch.Response`
+    * `Cafex.Protocol.Offset`
+      - `Cafex.Protocol.Offset.Request`
+      - `Cafex.Protocol.Offset.Response`
+    * `Cafex.Protocol.ConsumerMetadata`
+      - `Cafex.Protocol.ConsumerMetadata.Request`
+      - `Cafex.Protocol.ConsumerMetadata.Response`
+    * `Cafex.Protocol.OffsetCommit`
+      - `Cafex.Protocol.OffsetCommit.Request`
+      - `Cafex.Protocol.OffsetCommit.Response`
+    * `Cafex.Protocol.OffsetFetch`
+      - `Cafex.Protocol.OffsetFetch.Request`
+      - `Cafex.Protocol.OffsetFetch.Response`
   """
+
+  @type api_version :: 0 | 1 | 2
+  @type api_key :: 0..10
 
   alias Cafex.Protocol.Request
   alias Cafex.Protocol.Message

@@ -7,6 +7,12 @@ defmodule Cafex.Consumer.Worker do
   @min_bytes 32 * 1024
   @max_bytes 1024 * 1024
 
+  @typedoc "Options used by the `start_link/9` functions"
+  @type options :: [wait_time: non_neg_integer,
+                    min_bytes: non_neg_integer,
+                    max_bytes: non_neg_integer]
+  @type handler :: {module, args :: [Keyword.t]}
+
   defmodule State do
     @moduledoc false
     defstruct topic: nil,
@@ -50,6 +56,7 @@ defmodule Cafex.Consumer.Worker do
   #  GenServer callbacks
   # ===================================================================
 
+  @doc false
   def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, nil]) do
     init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, []])
   end
@@ -70,6 +77,7 @@ defmodule Cafex.Consumer.Worker do
 
   @lock_timeout 60000 * 5
 
+  @doc false
   def aquire_lock(:timeout, %{partition: partition,
                               zk_pid: pid,
                               zk_path: zk_path,
@@ -87,6 +95,7 @@ defmodule Cafex.Consumer.Worker do
     end
   end
 
+  @doc false
   def waiting_lock(:timeout, state) do
     {:stop, :lock_timeout, state}
   end
@@ -94,6 +103,7 @@ defmodule Cafex.Consumer.Worker do
     {:next_state, :aquire_lock, %{state | lock: {false, lock}}, 0}
   end
 
+  @doc false
   def prepare(:timeout, %{partition: partition,
                           broker: {host, port},
                           handler: {handler, args},
@@ -107,6 +117,7 @@ defmodule Cafex.Consumer.Worker do
                                         handler_data: data}, 0}
   end
 
+  @doc false
   def consuming(:timeout, state) do
     consume(state)
   end
@@ -114,6 +125,7 @@ defmodule Cafex.Consumer.Worker do
     handle_fetch_response(response, state)
   end
 
+  @doc false
   def waiting_messages(:timeout, state) do
     {:stop, :fetch_timeout, state}
   end
@@ -126,6 +138,7 @@ defmodule Cafex.Consumer.Worker do
       {:stop, {:bad_event, state_name, event}, state_data}
   end
 
+  @doc false
   def handle_sync_event(:stop, _from, _state_name, state) do
     {:stop, :normal, :ok, state}
   end

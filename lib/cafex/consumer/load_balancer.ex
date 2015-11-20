@@ -1,7 +1,13 @@
 defmodule Cafex.Consumer.LoadBalancer do
+  @moduledoc """
+  Balance partition assignment between Cafex consumers
+  """
+
+  @type layout :: [{node, [partition]}]
+  @type partition :: non_neg_integer
 
   @doc """
-  Balance partition assignment between consumers
+  Balance partition assignment between Cafex consumers
 
   ## Examples
 
@@ -28,7 +34,7 @@ defmodule Cafex.Consumer.LoadBalancer do
 
   More details see the source of this module or test.
   """
-  @spec rebalance([{atom, [integer]}], integer) :: [{atom, [integer]}]
+  @spec rebalance(layout, partitions :: non_neg_integer) :: [layout]
   def rebalance([], _partitions), do: []
   def rebalance(layout, partitions) do
     consumers = Keyword.keys(layout)
