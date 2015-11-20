@@ -167,8 +167,8 @@ defmodule Cafex.Protocol do
 
   ## Examples
 
-  iex> decode_array(<<0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2>>, fn <<x :: 32, rest :: binary>> -> {x, rest} end)
-  {[1, 2], <<>>}
+      iex> decode_array(<<0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2>>, fn <<x :: 32, rest :: binary>> -> {x, rest} end)
+      {[1, 2], <<>>}
   """
   def decode_array(<< num_items :: 32-signed, rest :: binary >>, item_decoder) do
     decode_array_items(num_items, rest, item_decoder, [])
