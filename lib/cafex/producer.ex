@@ -13,11 +13,12 @@ defmodule Cafex.Producer do
   @default_timeout 60000
 
   @typedoc "Options used by the `start_link/2` functions"
-  @type options :: [client_id: Cafex.client_id,
-                    brokers: [Cafex.broker],
-                    acks: -1..32767,
-                    batch_num: pos_integer,
-                    linger_ms: non_neg_integer]
+  @type options :: [option]
+  @type option :: {:client_id, Cafex.client_id} |
+                  {:brokers, [Cafex.broker]} |
+                  {:acks, -1..32767} |
+                  {:batch_num, pos_integer} |
+                  {:linger_ms, non_neg_integer}
 
   require Logger
 

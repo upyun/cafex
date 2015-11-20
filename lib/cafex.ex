@@ -3,9 +3,10 @@ defmodule Cafex do
   @type server :: {host :: String.t, port :: 0..65535}
   @type broker :: server
   @type client_id :: String.t
-  @type zookeeper :: [servers: [server],
-                      path: String.t,
-                      timeout: non_neg_integer]
+  @type zookeeper :: [zookeeper_option]
+  @type zookeeper_option :: {:servers, [server]} |
+                            {:path, String.t} |
+                            {:timeout, non_neg_integer}
 
   def start_topic(name, brokers, opts \\ []) do
     Cafex.Topic.Supervisor.start_topic(name, brokers, opts)

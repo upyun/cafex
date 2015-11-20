@@ -61,12 +61,13 @@ defmodule Cafex.Consumer.Manager do
   @default_client_id "cafex"
 
   @typedoc "Options used by the `start_link/3` functions"
-  @type options :: [client_id: Cafex.client_id,
-                    handler: Cafex.Consumer.Worker.handler,
-                    worker: Cafex.Consumer.Worker.options,
-                    brokers: [Cafex.broker],
-                    zookeeper: Cafex.zookeeper ]
+  @type options :: [option]
 
+  @type option :: {:client_id, Cafex.client_id} |
+                  {:handler, Cafex.Consumer.Worker.handler} |
+                  {:worker, Cafex.Consumer.Worker.options} |
+                  {:brokers, [Cafex.broker]} |
+                  {:zooKeeper, Cafex.zookeeper}
   defmodule State do
     @moduledoc false
     defstruct group_name: nil,

@@ -8,9 +8,10 @@ defmodule Cafex.Consumer.Worker do
   @max_bytes 1024 * 1024
 
   @typedoc "Options used by the `start_link/9` functions"
-  @type options :: [wait_time: non_neg_integer,
-                    min_bytes: non_neg_integer,
-                    max_bytes: non_neg_integer]
+  @type options :: [option]
+  @type option :: {:wait_time, non_neg_integer} |
+                  {:min_bytes, non_neg_integer} |
+                  {:max_bytes, non_neg_integer}
   @type handler :: {module, args :: [Keyword.t]}
 
   defmodule State do
