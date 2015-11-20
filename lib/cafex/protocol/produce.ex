@@ -2,6 +2,10 @@ defmodule Cafex.Protocol.Produce do
   @behaviour Cafex.Protocol.Decoder
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 0
+
     defstruct required_acks: 0,
               timeout: 0,
               messages: []
@@ -10,13 +14,8 @@ defmodule Cafex.Protocol.Produce do
                          timeout: integer,
                          messages: [Cafex.Protocol.Message.t] }
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 0
-      def api_version(_), do: 0
-
-      def encode(request) do
-        Cafex.Protocol.Produce.encode(request)
-      end
+    def encode(request) do
+      Cafex.Protocol.Produce.encode(request)
     end
   end
 

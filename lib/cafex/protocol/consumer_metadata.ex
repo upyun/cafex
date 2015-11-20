@@ -2,16 +2,16 @@ defmodule Cafex.Protocol.ConsumerMetadata do
   @behaviour Cafex.Protocol.Decoder
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 10
+
     defstruct consumer_group: nil
 
     @type t :: %Request{consumer_group: binary}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 10
-      def api_version(_), do: 0
-      def encode(request) do
-        Cafex.Protocol.ConsumerMetadata.encode(request)
-      end
+    def encode(request) do
+      Cafex.Protocol.ConsumerMetadata.encode(request)
     end
   end
 

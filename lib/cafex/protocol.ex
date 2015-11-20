@@ -1,7 +1,48 @@
 defmodule Cafex.Protocol do
+  @moduledoc """
+  This module provide encode/decode functions for common structures in Kafka protocol.
+
+  And also provide conveniences for implementing API request and the `Cafex.Protocol.Request`.
+  """
 
   alias Cafex.Protocol.Request
   alias Cafex.Protocol.Message
+
+  defmacro __using__(_opts) do
+    quote do
+      @behaviour Cafex.Protocol.RequestBehaviour
+      @before_compile unquote(__MODULE__)
+
+      def has_response(_), do: true
+
+      defimpl Cafex.Protocol.Request do
+        def api_key(req), do: unquote(__CALLER__.module).api_key(req)
+        def api_version(req), do: unquote(__CALLER__.module).api_version(req)
+        def has_response(req), do: unquote(__CALLER__.module).has_response(req)
+        def encode(req), do: unquote(__CALLER__.module).encode(req)
+      end
+
+      defoverridable [has_response: 1]
+    end
+  end
+
+  defmacro __before_compile__(env) do
+    api_key = env.module |> Module.get_attribute(:api_key)
+    api_version = env.module |> Module.get_attribute(:api_version)
+
+    quote do
+      def api_key(_), do: unquote(api_key)
+
+      def api_version(_) do
+        case unquote(api_version) do
+          nil -> 0
+          version -> version
+        end
+      end
+
+      defoverridable [api_version: 1, api_key: 1]
+    end
+  end
 
   def encode_request(client_id, correlation_id, request) do
     api_key = Request.api_key(request)

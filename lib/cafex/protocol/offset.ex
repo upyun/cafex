@@ -2,6 +2,10 @@ defmodule Cafex.Protocol.Offset do
   @behaviour Cafex.Protocol.Decoder
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 2
+
     defstruct replica_id: -1,
               topics: []
 
@@ -11,13 +15,8 @@ defmodule Cafex.Protocol.Offset do
                                                   time :: integer,
                                                   max_number_of_offsets :: integer}]}]}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 2
-      def api_version(_), do: 0
-
-      def encode(request) do
-        Cafex.Protocol.Offset.encode(request)
-      end
+    def encode(request) do
+      Cafex.Protocol.Offset.encode(request)
     end
   end
 

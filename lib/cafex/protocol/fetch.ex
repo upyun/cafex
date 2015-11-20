@@ -4,6 +4,10 @@ defmodule Cafex.Protocol.Fetch do
   alias Cafex.Protocol.Message
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 1
+
     defstruct replica_id: -1,
               max_wait_time: -1,
               min_bytes: 0,
@@ -17,12 +21,8 @@ defmodule Cafex.Protocol.Fetch do
                                                   offset :: integer,
                                                   max_bytes :: integer}]}]}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 1
-      def api_version(_), do: 0
-      def encode(request) do
-        Cafex.Protocol.Fetch.encode(request)
-      end
+    def encode(request) do
+      Cafex.Protocol.Fetch.encode(request)
     end
   end
 

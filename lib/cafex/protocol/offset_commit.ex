@@ -1,15 +1,21 @@
 defmodule Cafex.Protocol.OffsetCommit do
-  @behaviour Cafex.Protocol.Decoder
-
   @moduledoc """
+  This api saves out the consumer's position in the stream for one or more partitions.
+
   The offset commit request support version 0, 1 and 2.
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
   """
+
+  @behaviour Cafex.Protocol.Decoder
 
   @default_consumer_group_generation_id -1
   @default_timestamp -1
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 8
+
     defstruct api_version: 0,
               consumer_group: "cafex",
               consumer_group_generation_id: nil,
@@ -31,12 +37,9 @@ defmodule Cafex.Protocol.OffsetCommit do
                                                   offset :: integer,
                                                   metadata:: binary}]}]}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 8
-      def api_version(%{api_version: api_version}), do: api_version
-      def encode(request) do
-        Cafex.Protocol.OffsetCommit.encode(request)
-      end
+    def api_version(%{api_version: api_version}), do: api_version
+    def encode(request) do
+      Cafex.Protocol.OffsetCommit.encode(request)
     end
   end
 

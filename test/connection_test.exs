@@ -76,21 +76,30 @@ defmodule Cafex.ConnectionTest do
     @behaviour Cafex.Protocol.Decoder
 
     defmodule Request do
-      defstruct test_id: nil, test_msg: nil, api_key: 0
+      use Cafex.Protocol
 
-      defimpl Cafex.Protocol.Request do
-        def api_key(%{api_key: api_key}), do: api_key
-        def api_version(_), do: 0
+      @api_key 0
+      defstruct test_id: nil, test_msg: nil
 
-        def encode(request) do
-          Decoder.encode(request)
-        end
+      def encode(request) do
+        Decoder.encode(request)
+      end
+    end
+
+    defmodule BadRequest do
+      use Cafex.Protocol
+
+      @api_key -1
+      defstruct test_id: nil, test_msg: nil
+
+      def encode(request) do
+        Decoder.encode(request)
       end
     end
 
     def decode(<<id :: 32, msg_len :: 16, msg :: size(msg_len)-binary>>), do: {id, msg}
 
-    def encode(%Request{test_id: id, test_msg: msg}) do
+    def encode(%{test_id: id, test_msg: msg}) do
       <<id :: 32, Cafex.Protocol.encode_string(msg) :: binary>>
     end
   end
@@ -129,7 +138,7 @@ defmodule Cafex.ConnectionTest do
     refute Process.alive?(pid)
 
     {:ok, pid} = Connection.start "localhost", port
-    request3 = %Decoder.Request{test_id: 3, test_msg: "hello", api_key: -1}
+    request3 = %Decoder.BadRequest{test_id: 3, test_msg: "hello"}
     assert {:closed, _} = catch_exit Connection.request(pid, request3, Decoder)
     refute Process.alive?(pid)
 

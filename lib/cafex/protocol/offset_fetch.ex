@@ -1,12 +1,18 @@
 defmodule Cafex.Protocol.OffsetFetch do
-  @behaviour Cafex.Protocol.Decoder
-
   @moduledoc """
+  This api reads back a consumer position previously written using the OffsetCommit api.
+
   The offset fetch request support version 0, 1 and 2.
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetFetchRequest).
   """
 
+  @behaviour Cafex.Protocol.Decoder
+
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 9
+
     defstruct api_version: 0,
               consumer_group: nil,
               topics: []
@@ -16,12 +22,9 @@ defmodule Cafex.Protocol.OffsetFetch do
                         topics: [{topic_name :: String.t,
                                   partitions :: [integer]}]}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 9
-      def api_version(%{api_version: api_version}), do: api_version
-      def encode(request) do
-        Cafex.Protocol.OffsetFetch.encode(request)
-      end
+    def api_version(%{api_version: api_version}), do: api_version
+    def encode(request) do
+      Cafex.Protocol.OffsetFetch.encode(request)
     end
   end
 

@@ -2,19 +2,18 @@ defmodule Cafex.Protocol.Metadata do
   @behaviour Cafex.Protocol.Decoder
 
   defmodule Request do
+    use Cafex.Protocol
+
+    @api_key 3
+
     defstruct topics: []
 
     @type t :: %Request{topics: [binary]}
 
-    defimpl Cafex.Protocol.Request do
-      def api_key(_), do: 3
-      def api_version(_), do: 0
-
-      def encode(%Request{topics: topics}) do
-        topics
-        |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
-        |> IO.iodata_to_binary
-      end
+    def encode(%Request{topics: topics}) do
+      topics
+      |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
+      |> IO.iodata_to_binary
     end
   end
 
