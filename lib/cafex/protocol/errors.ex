@@ -31,10 +31,8 @@ defmodule Cafex.Protocol.Errors do
 
   @type t :: unquote(Map.values(@error_map) ++ [:unknown_error]
              |> List.foldr([], fn
-               v, [] ->
-                 v
-               v, acc ->
-                 {:|, [], [v, acc]}
+               v, []  -> quote do: unquote(v)
+               v, acc -> quote do: unquote(v) | unquote(acc)
              end))
 
   @spec error(error_code :: integer) :: t

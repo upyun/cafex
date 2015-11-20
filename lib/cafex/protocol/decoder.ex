@@ -5,33 +5,37 @@ defmodule Cafex.Protocol.Decoder do
 
   use Behaviour
 
-  alias Cafex.Protocol, as: P
+  @decoders [ Metadata,
+              Produce,
+              Fetch,
+              Offset,
+              ConsumerMetadata,
+              OffsetCommit,
+              OffsetFetch ]
 
   @typedoc """
   The `decode` function in each decoder will return there own response struct
 
   See `Cafex.Protocol`
   """
-  @type response :: P.Metadata.Response.t |
-                    P.Produce.Response.t |
-                    P.Fetch.Response.t |
-                    P.Offset.Response.t |
-                    P.ConsumerMetadata.Response.t |
-                    P.OffsetCommit.Response.t |
-                    P.OffsetFetch.Response.t
+  @type response :: unquote(Enum.map(@decoders, fn d ->
+    quote do: Cafex.Protocol.unquote(d).Response.t
+  end) |> List.foldr([], fn
+    v, []  -> quote do: unquote(v)
+    v, acc -> quote do: unquote(v) | unquote(acc)
+  end))
 
   @typedoc """
   The modules which implement the `Decoder` interface
 
   See `Cafex.Protocol`
   """
-  @type decoder  :: P.Metadata |
-                    P.Produce |
-                    P.Fetch |
-                    P.Offset |
-                    P.ConsumerMetadata |
-                    P.OffsetCommit |
-                    P.OffsetFetch
+  @type decoder :: unquote(Enum.map(@decoders, fn d ->
+    quote do: Cafex.Protocol.unquote(d)
+  end) |> List.foldr([], fn
+    v, []  -> quote do: unquote(v)
+    v, acc -> quote do: unquote(v) | unquote(acc)
+  end))
 
   @doc """
   Decode the response message in the Kafka server response
