@@ -141,7 +141,10 @@ defmodule Cafex.Producer.Worker do
         Enum.each(replies, &do_reply/1)
         :ok
       {:error, reason} ->
-        Enum.each(message_pairs, &(do_reply({&1, reason})))
+        # Enum.each(message_pairs, &(do_reply({elem(&1, 0), reason})))
+        Enum.each(message_pairs, fn {from, _message} ->
+          do_reply({from, reason})
+        end)
         {:error, reason}
     end
   end
