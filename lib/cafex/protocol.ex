@@ -9,17 +9,15 @@ defmodule Cafex.Protocol do
   alias Cafex.Protocol.Message
 
   defmacro __using__(_opts) do
+    impls = impl_request(__CALLER__.module)
     quote do
       @behaviour Cafex.Protocol.RequestBehaviour
       @before_compile unquote(__MODULE__)
 
       def has_response(_), do: true
 
-      defimpl Cafex.Protocol.Request do
-        def api_key(req), do: unquote(__CALLER__.module).api_key(req)
-        def api_version(req), do: unquote(__CALLER__.module).api_version(req)
-        def has_response(req), do: unquote(__CALLER__.module).has_response(req)
-        def encode(req), do: unquote(__CALLER__.module).encode(req)
+      defimpl Request do
+        unquote(impls)
       end
 
       defoverridable [has_response: 1]
@@ -42,6 +40,15 @@ defmodule Cafex.Protocol do
 
       defoverridable [api_version: 1, api_key: 1]
     end
+  end
+
+  defp impl_request(module) do
+    [:api_key, :api_version, :has_response, :encode]
+    |> Enum.map(fn func ->
+      quote do
+        def unquote(func)(req), do: unquote(module).unquote(func)(req)
+      end
+    end)
   end
 
   def encode_request(client_id, correlation_id, request) do
