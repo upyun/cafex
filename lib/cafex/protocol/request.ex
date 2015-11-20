@@ -22,7 +22,7 @@ defprotocol Cafex.Protocol.Request do
 
   `Cafex.Protocol` module will call this function on every request to check if server will reply or not.
   """
-  def has_response(req)
+  def has_response?(req)
 
   @doc """
   Encode the request struct to binary

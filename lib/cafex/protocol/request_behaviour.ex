@@ -37,7 +37,7 @@ defmodule Cafex.Protocol.RequestBehaviour do
 
   All request expecte server reply except the produce request with a `0` required_acks.
   """
-  defcallback has_response(req :: Request.t) :: boolean
+  defcallback has_response?(req :: Request.t) :: boolean
 
   @doc """
   Encode the request data into binary.

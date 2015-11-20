@@ -61,6 +61,8 @@ defmodule Cafex.Connection do
 
   def handle_call({:request, request, decoder}, _from, state) do
     case do_request(request, decoder, state) do
+      {:ok, state} ->
+        {:reply, :ok, state}
       {{:ok, reply}, state} ->
         {:reply, {:ok, reply}, state}
       {{:error, reason}, state} ->
@@ -74,6 +76,8 @@ defmodule Cafex.Connection do
 
   def handle_cast({:async_request, request, decoder, receiver}, state) do
     case do_request(request, decoder, state) do
+      {:ok, state} ->
+        {:noreply, state}
       {{:ok, reply}, state} ->
         send_reply(receiver, {:ok, reply})
         {:noreply, state}
@@ -108,10 +112,13 @@ defmodule Cafex.Connection do
   end
   defp maybe_open_socket(state), do: state
 
-  defp send_sync_request(socket, data, timeout) do
+  defp send_sync_request(socket, data, timeout, has_response) do
     case :gen_tcp.send(socket, data) do
       :ok ->
-        recv_response(socket, timeout)
+        case has_response do
+          true -> recv_response(socket, timeout)
+          false -> :ok
+        end
       {:error, _reason} = error ->
         error
     end
@@ -133,10 +140,13 @@ defmodule Cafex.Connection do
                                       correlation_id: correlation_id,
                                       timeout: timeout} = state) do
     data = Cafex.Protocol.encode_request(client_id, correlation_id, request)
+    has_response = Cafex.Protocol.has_response?(request)
 
     state = %{state | correlation_id: correlation_id + 1} |> maybe_open_socket
 
-    case send_sync_request(state.socket, data, timeout) do
+    case send_sync_request(state.socket, data, timeout, has_response) do
+      :ok ->
+        {:ok, state}
       {:ok, data} ->
         {_, reply} = Cafex.Protocol.decode_response(decoder, data)
         {{:ok, reply}, state}

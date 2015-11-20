@@ -41,13 +41,13 @@ defmodule Cafex.Protocol do
       @behaviour Cafex.Protocol.RequestBehaviour
       @before_compile unquote(__MODULE__)
 
-      def has_response(_), do: true
+      def has_response?(_), do: true
 
       defimpl Request do
         unquote(impls)
       end
 
-      defoverridable [has_response: 1]
+      defoverridable [has_response?: 1]
     end
   end
 
@@ -70,13 +70,15 @@ defmodule Cafex.Protocol do
   end
 
   defp impl_request(module) do
-    [:api_key, :api_version, :has_response, :encode]
+    [:api_key, :api_version, :has_response?, :encode]
     |> Enum.map(fn func ->
       quote do
         def unquote(func)(req), do: unquote(module).unquote(func)(req)
       end
     end)
   end
+
+  def has_response?(request), do: Request.has_response?(request)
 
   def encode_request(client_id, correlation_id, request) do
     api_key = Request.api_key(request)

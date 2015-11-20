@@ -17,6 +17,9 @@ defmodule Cafex.Protocol.Produce do
     def encode(request) do
       Cafex.Protocol.Produce.encode(request)
     end
+
+    def has_response?(%Request{required_acks: 0}), do: false
+    def has_response?(%Request{required_acks: _}), do: true
   end
 
   defmodule Response do
