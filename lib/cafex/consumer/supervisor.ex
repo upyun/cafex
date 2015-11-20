@@ -5,8 +5,8 @@ defmodule Cafex.Consumer.Supervisor do
     Supervisor.start_link __MODULE__, [], name: __MODULE__
   end
 
-  def start_consumer(name, topic_pid, opts) do
-    Supervisor.start_child __MODULE__, [name, topic_pid, opts]
+  def start_consumer(name, topic_name, opts) do
+    Supervisor.start_child __MODULE__, [name, topic_name, opts]
   end
 
   def init([]) do
