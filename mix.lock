@@ -1,4 +1,4 @@
 %{"earmark": {:hex, :earmark, "0.1.17"},
-  "erlzk": {:git, "https://github.com/huaban/erlzk.git", "ceace0b9be577c6b136d88c321554fae4c17a24c", [tag: "v0.6.0"]},
+  "erlzk": {:hex, :erlzk, "0.6.0"},
   "ex_doc": {:hex, :ex_doc, "0.10.0"},
   "kafka_ex": {:hex, :kafka_ex, "0.1.0"}}

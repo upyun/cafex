@@ -42,7 +42,7 @@ defmodule Cafex.Mixfile do
   defp deps do
     [{:earmark, "~> 0.1.17", only: :dev},
      {:ex_doc,  "~> 0.10.0", only: :dev},
-     {:erlzk,   git: "https://github.com/huaban/erlzk.git", tag: "v0.6.0"}]
+     {:erlzk,   "~> 0.6.0"}]
   end
 
   defp test_paths(:integration), do: ["integration_test"]
