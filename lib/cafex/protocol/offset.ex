@@ -1,44 +1,32 @@
 defmodule Cafex.Protocol.Offset do
-  @behaviour Cafex.Protocol.Decoder
+  use Cafex.Protocol, api_key: 2
 
-  defmodule Request do
-    use Cafex.Protocol
-
-    @api_key 2
-
-    defstruct replica_id: -1,
-              topics: []
+  defrequest do
+    field :replica_id, [default: -1], integer
+    field :topics, [topic]
 
     @type topic :: {topic :: String.t, partitions :: [partition]}
     @type partition :: {partition :: integer,
                         time :: integer,
                         max_number_of_offsets :: integer}
-    @type t :: %Request{replica_id: integer,
-                        topics: [topic]}
-
-    def encode(request) do
-      Cafex.Protocol.Offset.encode(request)
-    end
   end
 
-  defmodule Response do
-    defstruct offsets: []
-
+  defresponse do
+    field :offsets, [topic]
     @type topic :: {topic :: String.t, partitions :: [partition]}
     @type partition :: {partition :: integer,
-                        error :: Cafex.Protocol.Errors.t,
+                        error :: Cafex.Protocol.error,
                         offsets :: [integer]}
-    @type t :: %Response{ offsets: [topic]}
   end
 
   def encode(%Request{replica_id: replica_id, topics: topics}) do
-    [<< replica_id :: 32-signed >>, Cafex.Protocol.encode_array(topics, &encode_topic/1)]
+    [<< replica_id :: 32-signed >>, encode_array(topics, &encode_topic/1)]
     |> IO.iodata_to_binary
   end
 
   defp encode_topic({topic, partitions}) do
     [<< byte_size(topic) :: 16-signed, topic :: binary >>,
-     Cafex.Protocol.encode_array(partitions, &encode_partition/1)]
+     encode_array(partitions, &encode_partition/1)]
   end
 
   defp encode_partition({partition, time, max_number_of_offsets}) do
@@ -47,18 +35,18 @@ defmodule Cafex.Protocol.Offset do
 
   @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
-    {offsets, _rest} = Cafex.Protocol.decode_array(data, &parse_topic/1)
+    {offsets, _rest} = decode_array(data, &parse_topic/1)
     %Response{offsets: offsets}
   end
 
   defp parse_topic(<< topic_len :: 16-signed, topic :: size(topic_len)-binary, rest :: binary >>) do
-    {partitions, rest} = Cafex.Protocol.decode_array(rest, &parse_partition/1)
+    {partitions, rest} = decode_array(rest, &parse_partition/1)
     {{topic, partitions}, rest}
   end
 
   defp parse_partition(<< partition :: 32-signed, error_code :: 16-signed, rest :: binary >>) do
-    {offsets, rest} = Cafex.Protocol.decode_array(rest, &parse_offset/1)
-    {%{partition: partition, error: Cafex.Protocol.Errors.error(error_code), offsets: offsets}, rest}
+    {offsets, rest} = decode_array(rest, &parse_offset/1)
+    {%{partition: partition, error: decode_error(error_code), offsets: offsets}, rest}
   end
 
   defp parse_offset(<< offset :: 64-signed, rest :: binary >>), do: {offset, rest}

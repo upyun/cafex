@@ -72,29 +72,15 @@ defmodule Cafex.ConnectionTest do
     end
   end
 
-  defmodule Decoder do
-    @behaviour Cafex.Protocol.Decoder
+  defmodule TestApi do
+    use Cafex.Protocol, api_key: 0
 
-    defmodule Request do
-      use Cafex.Protocol
-
-      @api_key 0
-      defstruct test_id: nil, test_msg: nil
-
-      def encode(request) do
-        Decoder.encode(request)
-      end
+    defrequest do
+      field :test_id, integer
+      field :test_msg, binary
     end
 
-    defmodule BadRequest do
-      use Cafex.Protocol
-
-      @api_key -1
-      defstruct test_id: nil, test_msg: nil
-
-      def encode(request) do
-        Decoder.encode(request)
-      end
+    defresponse do
     end
 
     def decode(<<id :: 32, msg_len :: 16, msg :: size(msg_len)-binary>>), do: {id, msg}
@@ -102,6 +88,20 @@ defmodule Cafex.ConnectionTest do
     def encode(%{test_id: id, test_msg: msg}) do
       <<id :: 32, Cafex.Protocol.encode_string(msg) :: binary>>
     end
+  end
+
+  defmodule BadApi do
+    use Cafex.Protocol, api_key: -1
+    defrequest do
+      field :test_id, integer
+      field :test_msg, binary
+    end
+
+    defresponse do
+    end
+
+    defdelegate encode(request), to: TestApi
+    defdelegate decode(data), to: TestApi
   end
 
   setup do
@@ -127,19 +127,19 @@ defmodule Cafex.ConnectionTest do
 
     assert Process.alive?(pid)
 
-    request1 = %Decoder.Request{test_id: 1, test_msg: "hello"}
-    request2 = %Decoder.Request{test_id: 2, test_msg: "hello"}
+    request1 = %TestApi.Request{test_id: 1, test_msg: "hello"}
+    request2 = %TestApi.Request{test_id: 2, test_msg: "hello"}
 
-    assert {:ok, {1, "hello"}} == Connection.request(pid, request1, Decoder)
-    assert {:ok, {2, "hello"}} == Connection.request(pid, request2, Decoder)
+    assert {:ok, {1, "hello"}} == Connection.request(pid, request1)
+    assert {:ok, {2, "hello"}} == Connection.request(pid, request2)
 
     assert :ok == Connection.close(pid)
 
     refute Process.alive?(pid)
 
     {:ok, pid} = Connection.start "localhost", port
-    request3 = %Decoder.BadRequest{test_id: 3, test_msg: "hello"}
-    assert {:closed, _} = catch_exit Connection.request(pid, request3, Decoder)
+    request3 = %BadApi.Request{test_id: 3, test_msg: "hello"}
+    assert {:closed, _} = catch_exit Connection.request(pid, request3)
     refute Process.alive?(pid)
 
     {:ok, pid} = Connection.start "localhost", port
@@ -147,7 +147,7 @@ defmodule Cafex.ConnectionTest do
     assert Process.alive?(pid)
     assert :ok == Server.stop(server_pid)
     assert Process.alive?(pid)
-    assert {:closed, _} = catch_exit Connection.request(pid, request1, Decoder)
+    assert {:closed, _} = catch_exit Connection.request(pid, request1)
   end
 
   test "async request", context do
@@ -156,9 +156,9 @@ defmodule Cafex.ConnectionTest do
 
     assert Process.alive?(pid)
 
-    request = %Decoder.Request{test_id: 3, test_msg: "hello"}
+    request = %TestApi.Request{test_id: 3, test_msg: "hello"}
 
-    Connection.async_request(pid, request, Decoder, spawn(fn ->
+    Connection.async_request(pid, request, spawn(fn ->
       assert_receive {:ok, {3, "hello"}}
     end))
 

@@ -107,7 +107,7 @@ defmodule Cafex.Consumer.Coordinator do
       :kafka     -> %{request | api_version: 1}
     end
 
-    case Connection.request(conn, request, OffsetFetch) do
+    case Connection.request(conn, request) do
       {:ok, %{topics: [{^topic, [{^partition, offset, metadata, :no_error}]}]}} ->
         {:ok, {offset, metadata}}
       {:ok, %{topics: [{^topic, [{^partition, _, _, error}]}]}} ->
@@ -124,7 +124,7 @@ defmodule Cafex.Consumer.Coordinator do
       :zookeeper -> %{request | api_version: 0}
       :kafka     -> %{request | api_version: 1}
     end
-    case Connection.request(conn, request, OffsetCommit) do
+    case Connection.request(conn, request) do
       {:ok, %{topics: [{^topic, [{^partition, :no_error}]}]}} ->
         :ok
       {:ok, %{topics: [{^topic, [{^partition, error}]}]}} ->

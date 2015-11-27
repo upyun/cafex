@@ -24,7 +24,6 @@ defmodule Cafex.Connection do
   @type request  :: Cafex.Protocol.Request.t
   @type receiver :: {:fsm, pid} | {:server, pid} | pid
   @type response :: Decoder.response
-  @type decoder  :: Decoder.decoder
 
   # ===================================================================
   # API
@@ -38,14 +37,14 @@ defmodule Cafex.Connection do
     GenServer.start __MODULE__, [host, port, opts]
   end
 
-  @spec request(conn, request, decoder) :: :ok | {:ok, response} | {:error, term}
-  def request(pid, request, decoder) do
-    GenServer.call pid, {:request, request, decoder}
+  @spec request(conn, request) :: :ok | {:ok, response} | {:error, term}
+  def request(pid, request) do
+    GenServer.call pid, {:request, request}
   end
 
-  @spec async_request(conn, request, decoder, receiver) :: :ok
-  def async_request(pid, request, decoder, receiver) do
-    GenServer.cast pid, {:async_request, request, decoder, receiver}
+  @spec async_request(conn, request, receiver) :: :ok
+  def async_request(pid, request, receiver) do
+    GenServer.cast pid, {:async_request, request, receiver}
   end
 
   def close(pid) do
@@ -69,8 +68,8 @@ defmodule Cafex.Connection do
     {:ok, state}
   end
 
-  def handle_call({:request, request, decoder}, _from, state) do
-    case do_request(request, decoder, state) do
+  def handle_call({:request, request}, _from, state) do
+    case do_request(request, state) do
       {:ok, state} ->
         {:reply, :ok, state}
       {{:ok, reply}, state} ->
@@ -84,8 +83,8 @@ defmodule Cafex.Connection do
     {:stop, :normal, :ok, state}
   end
 
-  def handle_cast({:async_request, request, decoder, receiver}, state) do
-    case do_request(request, decoder, state) do
+  def handle_cast({:async_request, request, receiver}, state) do
+    case do_request(request, state) do
       {:ok, state} ->
         {:noreply, state}
       {{:ok, reply}, state} ->
@@ -146,11 +145,12 @@ defmodule Cafex.Connection do
     end
   end
 
-  defp do_request(request, decoder, %{client_id: client_id,
-                                      correlation_id: correlation_id,
-                                      timeout: timeout} = state) do
+  defp do_request(request, %{client_id: client_id,
+                             correlation_id: correlation_id,
+                             timeout: timeout} = state) do
     data = Cafex.Protocol.encode_request(client_id, correlation_id, request)
     has_response = Cafex.Protocol.has_response?(request)
+    decoder = Cafex.Protocol.Request.decoder(request)
 
     state = %{state | correlation_id: correlation_id + 1} |> maybe_open_socket
 
@@ -158,7 +158,7 @@ defmodule Cafex.Connection do
       :ok ->
         {:ok, state}
       {:ok, data} ->
-        {_, reply} = Cafex.Protocol.decode_response(decoder, data)
+        {_, reply} = Cafex.Protocol.Codec.decode_response(decoder, data)
         {{:ok, reply}, state}
       {:error, reason} ->
         Logger.error "Error sending request to broker: #{state.host}:#{state.port}"

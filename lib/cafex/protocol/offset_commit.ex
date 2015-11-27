@@ -6,54 +6,34 @@ defmodule Cafex.Protocol.OffsetCommit do
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
   """
 
-  @behaviour Cafex.Protocol.Decoder
+  use Cafex.Protocol, api_key: 8
 
   @default_consumer_group_generation_id -1
   @default_timestamp -1
 
-  defmodule Request do
-    use Cafex.Protocol
+  defrequest do
+    field :api_version, [default: 0], api_version
+    field :consumer_group, [default: "cafex"], String.t
+    field :consumer_group_generation_id, integer | nil
+    field :consumer_id, String.t | nil
+    field :retention_time, integer | nil
+    field :topics, [topic]
 
-    @api_key 8
-
-    defstruct api_version: 0,
-              consumer_group: "cafex",
-              consumer_group_generation_id: nil,
-              consumer_id: "",
-              retention_time: nil,
-              topics: []
-
-    @typedoc """
-    OffsetCommit API now support v0 (supported in 0.8.1 or later), v1 (supported in 0.8.2 or later) and v2 (supported in 0.8.3 or later)
-
-    To read more details, visit the [OffsetCommitRequest protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
-    """
     @type api_version :: 0 | 1 | 2
     @type topic :: {topic_name :: String.t, partitions :: [partition]}
     @type partition :: partition_v0 | partition_v1 | partition_v2
     @type partition_v0 :: {partition :: integer, offset :: integer, metadata:: binary}
     @type partition_v1 :: {partition :: integer, offset :: integer, timestamp :: integer, metadata :: binary}
     @type partition_v2 :: {partition :: integer, offset :: integer, metadata:: binary}
-    @type t :: %Request{api_version: api_version,
-                        consumer_group: String.t,
-                        consumer_group_generation_id: integer | nil,
-                        consumer_id: String.t | nil,
-                        retention_time: integer | nil,
-                        topics: [topic]}
-
-    def api_version(%Request{api_version: api_version}), do: api_version
-    def encode(request) do
-      Cafex.Protocol.OffsetCommit.encode(request)
-    end
   end
 
-  defmodule Response do
-    defstruct topics: []
-
+  defresponse do
+    field :topics, [topic]
     @type topic :: {topic_name :: String.t, partitions :: [partition]}
-    @type partition :: {partition :: integer, error :: Cafex.Protocol.Errors.t}
-    @type t :: %Response{ topics: [topic] }
+    @type partition :: {partition :: integer, error :: Cafex.Protocol.error}
   end
+
+  def api_version(%Request{api_version: api_version}), do: api_version
 
   def encode(request) do
     request |> fill_default |> do_encode
@@ -98,8 +78,8 @@ defmodule Cafex.Protocol.OffsetCommit do
   end
 
   defp encode_0(%{consumer_group: consumer_group, topics: topics}) do
-    [Cafex.Protocol.encode_string(consumer_group),
-     Cafex.Protocol.encode_array(topics, &encode_topic_0/1)]
+    [encode_string(consumer_group),
+     encode_array(topics, &encode_topic_0/1)]
     |> IO.iodata_to_binary
   end
 
@@ -107,10 +87,10 @@ defmodule Cafex.Protocol.OffsetCommit do
                 consumer_group_generation_id: consumer_group_generation_id,
                 consumer_id: consumer_id,
                 topics: topics}) do
-    [Cafex.Protocol.encode_string(consumer_group),
+    [encode_string(consumer_group),
      <<consumer_group_generation_id :: 32-signed>>,
-     Cafex.Protocol.encode_string(consumer_id),
-     Cafex.Protocol.encode_array(topics, &encode_topic_1/1)]
+     encode_string(consumer_id),
+     encode_array(topics, &encode_topic_1/1)]
     |> IO.iodata_to_binary
   end
 
@@ -119,11 +99,11 @@ defmodule Cafex.Protocol.OffsetCommit do
                 consumer_id: consumer_id,
                 retention_time: retention_time,
                 topics: topics}) do
-    [Cafex.Protocol.encode_string(consumer_group),
+    [encode_string(consumer_group),
      <<consumer_group_generation_id :: 32-signed>>,
-     Cafex.Protocol.encode_string(consumer_id),
+     encode_string(consumer_id),
      <<retention_time :: 64>>,
-     Cafex.Protocol.encode_array(topics, &encode_topic_2/1)]
+     encode_array(topics, &encode_topic_2/1)]
     |> IO.iodata_to_binary
   end
 
@@ -132,30 +112,30 @@ defmodule Cafex.Protocol.OffsetCommit do
   defp encode_topic_2(data), do: encode_topic(data, &encode_partition_2/1)
 
   defp encode_topic({topic, partitions}, func) do
-    [Cafex.Protocol.encode_string(topic),
-     Cafex.Protocol.encode_array(partitions, func)]
+    [encode_string(topic),
+     encode_array(partitions, func)]
   end
 
   defp encode_partition_0({partition, offset, metadata}) do
-    [<< partition :: 32-signed, offset :: 64 >>, Cafex.Protocol.encode_string(metadata)]
+    [<< partition :: 32-signed, offset :: 64 >>, encode_string(metadata)]
   end
   defp encode_partition_1({partition, offset, timestamp, metadata}) do
-    [<< partition :: 32-signed, offset :: 64, timestamp :: 64 >>, Cafex.Protocol.encode_string(metadata)]
+    [<< partition :: 32-signed, offset :: 64, timestamp :: 64 >>, encode_string(metadata)]
   end
   defp encode_partition_2(data), do: encode_partition_0(data)
 
   @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
-    {topics, _} = Cafex.Protocol.decode_array(data, &decode_topic/1)
+    {topics, _} = decode_array(data, &decode_topic/1)
     %Response{topics: topics}
   end
 
   defp decode_topic(<< size :: 16-signed, topic :: size(size)-binary, rest :: binary >>) do
-    {partitions, rest} = Cafex.Protocol.decode_array(rest, &decode_partition/1)
+    {partitions, rest} = decode_array(rest, &decode_partition/1)
     {{topic, partitions}, rest}
   end
 
   defp decode_partition(<< partition :: 32-signed, error_code :: 16-signed, rest :: binary >>) do
-    {{partition, Cafex.Protocol.Errors.error(error_code)}, rest}
+    {{partition, decode_error(error_code)}, rest}
   end
 end

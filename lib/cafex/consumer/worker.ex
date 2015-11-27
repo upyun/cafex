@@ -37,7 +37,6 @@ defmodule Cafex.Consumer.Worker do
 
   alias Cafex.ZK.Lock
   alias Cafex.Connection
-  alias Cafex.Protocol.Fetch
   alias Cafex.Protocol.Fetch.Request, as: FetchRequest
   alias Cafex.Consumer.Coordinator
 
@@ -189,7 +188,7 @@ defmodule Cafex.Consumer.Worker do
     request = %FetchRequest{max_wait_time: wait_time,
                             min_bytes: min_bytes,
                             topics: [{topic, [{partition, offset, max_bytes}]}]}
-    Connection.async_request(conn, request, Fetch, {:fsm, self})
+    Connection.async_request(conn, request, {:fsm, self})
     state
   end
 

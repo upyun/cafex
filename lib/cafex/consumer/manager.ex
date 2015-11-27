@@ -590,7 +590,7 @@ defmodule Cafex.Consumer.Manager do
     {:error, :consumer_coordinator_not_available}
   end
   defp try_fetch_consumer_metadata(conn, request, retries) when is_integer(retries) and retries > 0 do
-    case Connection.request(conn, request, ConsumerMetadata) do
+    case Connection.request(conn, request) do
       {:ok, %{error: :no_error, coordinator_host: host, coordinator_port: port}} ->
         {:ok, {host, port}}
       {:ok, %{error: :consumer_coordinator_not_available}} ->

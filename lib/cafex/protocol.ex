@@ -30,34 +30,33 @@ defmodule Cafex.Protocol do
   """
 
   @type api_version :: 0 | 1 | 2
-  @type api_key :: 0..10
+  @type api_key :: 0..16
+  @type error :: Cafex.Protocol.Errors.t
 
   alias Cafex.Protocol.Request
-  alias Cafex.Protocol.Message
 
-  defmacro __using__(_opts) do
-    impls = impl_request(__CALLER__.module)
+  defmacro __using__(opts) do
+    {opts, []} = Code.eval_quoted(opts, [], __CALLER__)
+    api_key = Keyword.get opts, :api_key
+    api_version = Keyword.get opts, :api_version, 0
+    mod = __CALLER__.module
+
+    if api_key == nil do
+      raise "To use #{inspect __MODULE__}, `api_key` must be set"
+    end
+
+    Module.put_attribute mod, :api_key, api_key
+    Module.put_attribute mod, :api_version, api_version
+
     quote do
-      @behaviour Cafex.Protocol.RequestBehaviour
+      import unquote(__MODULE__), only: [defrequest: 1, defresponse: 1]
+      import Cafex.Protocol.Codec
+      @behaviour Cafex.Protocol.Codec
       @before_compile unquote(__MODULE__)
 
       def has_response?(_), do: true
-
-      defimpl Request do
-        unquote(impls)
-      end
-
-      defoverridable [has_response?: 1]
-    end
-  end
-
-  defmacro __before_compile__(env) do
-    api_key = env.module |> Module.get_attribute(:api_key)
-    api_version = env.module |> Module.get_attribute(:api_version)
-
-    quote do
+      def decoder(_), do: __MODULE__
       def api_key(_), do: unquote(api_key)
-
       def api_version(_) do
         case unquote(api_version) do
           nil -> 0
@@ -65,202 +64,136 @@ defmodule Cafex.Protocol do
         end
       end
 
-      defoverridable [api_version: 1, api_key: 1]
+      defoverridable [has_response?: 1, api_version: 1, api_key: 1, decoder: 1]
     end
   end
 
-  defp impl_request(module) do
-    [:api_key, :api_version, :has_response?, :encode]
+  defmacro __before_compile__(env) do
+    # TODO check defrequest and defresponse
+    mod = env.module
+    request = Module.get_attribute mod, :request
+    response = Module.get_attribute mod, :response
+
+    quoted = []
+
+    quoted = quoted ++ if request == nil do
+      [quote do
+        unquote(__MODULE__).defrequest
+      end]
+    end
+
+    if response == nil do
+      raise "use #{__MODULE__} must call `defresponse`"
+    end
+
+    quoted
+  end
+
+  defmacro defrequest(opts \\ []) do
+    block = Keyword.get(opts, :do)
+    mod = __CALLER__.module
+
+    impl_protocol = impl_request_protocol(mod)
+
+    quote do
+      defmodule Request do
+        import unquote(__MODULE__), only: [field: 3, field: 2]
+
+        Module.register_attribute(__MODULE__, :fields, accumulate: true)
+        Module.register_attribute(__MODULE__, :struct_fields, accumulate: true)
+
+        unquote(block)
+        unquote(impl_protocol)
+
+        Module.eval_quoted __ENV__, [
+          Cafex.Protocol.__struct__(@struct_fields),
+          Cafex.Protocol.__typespec__(__MODULE__)
+        ]
+      end
+      Module.put_attribute __MODULE__, :request, true
+    end
+  end
+
+  defmacro defresponse(do: block) do
+    quote do
+      defmodule Response do
+        Module.register_attribute(__MODULE__, :fields, accumulate: true)
+        Module.register_attribute(__MODULE__, :struct_fields, accumulate: true)
+        import unquote(__MODULE__), only: [field: 3, field: 2]
+
+        unquote(block)
+
+        Module.eval_quoted __ENV__, [
+          Cafex.Protocol.__struct__(@struct_fields),
+          Cafex.Protocol.__typespec__(__MODULE__)
+        ]
+      end
+      Module.put_attribute __MODULE__, :response, true
+    end
+  end
+
+  defmacro field(name, opts \\ [], type) do
+    type = Macro.escape(type)
+    quote do
+      Cafex.Protocol.__field__(__MODULE__, unquote(name), unquote(type), unquote(opts))
+    end
+  end
+
+  defdelegate encode_request(client_id, correlation_id, request), to: Cafex.Protocol.Codec
+  defdelegate encode_string(data), to: Cafex.Protocol.Codec
+  defdelegate has_response?(request), to: Cafex.Protocol.Request
+
+  @doc false
+  def __typespec__(mod) do
+    types = Module.get_attribute(mod, :fields)
+
+    {:%, [], [name, {:%{}, [], _}]} = quote do
+      %unquote(mod){}
+    end
+
+    type_specs = {:%, [], [name, {:%{}, [], types}]}
+
+    quote do
+      @type t :: unquote(type_specs)
+    end
+  end
+
+  @doc false
+  def __field__(mod, name, type, opts) do
+    default = Keyword.get(opts, :default)
+    Module.put_attribute(mod, :fields, {name, type})
+    put_struct_field(mod, name, default)
+  end
+
+  @doc false
+  def __struct__(struct_fields) do
+    quote do
+      defstruct unquote(Macro.escape(struct_fields))
+    end
+  end
+
+  defp put_struct_field(mod, name, assoc) do
+    fields = Module.get_attribute(mod, :struct_fields)
+
+    if List.keyfind(fields, name, 0) do
+      raise ArgumentError, "field #{inspect name} is already set on #{inspect mod}"
+    end
+
+    Module.put_attribute(mod, :struct_fields, {name, assoc})
+  end
+
+  defp impl_request_protocol(mod) do
+    impls = [:api_key, :api_version, :has_response?, :encode, :decoder]
     |> Enum.map(fn func ->
       quote do
-        def unquote(func)(req), do: unquote(module).unquote(func)(req)
+        def unquote(func)(req), do: unquote(mod).unquote(func)(req)
       end
     end)
-  end
 
-  def has_response?(request), do: Request.has_response?(request)
-
-  def encode_request(client_id, correlation_id, request) do
-    api_key = Request.api_key(request)
-    api_version = Request.api_version(request)
-    payload = Request.encode(request)
-    << api_key :: 16, api_version :: 16, correlation_id :: 32,
-       byte_size(client_id) :: 16, client_id :: binary,
-       payload :: binary >>
-  end
-
-  def decode_response(decoder, << correlation_id :: 32, rest :: binary >>) do
-    {correlation_id, decoder.decode(rest)}
-  end
-
-  @doc """
-  Encode bytes
-
-  ## Examples
-
-      iex> encode_bytes(nil)
-      <<255, 255, 255, 255>>
-
-      iex> encode_bytes("")
-      <<255, 255, 255, 255>>
-
-      iex> encode_bytes("hey")
-      <<0, 0, 0, 3, 104, 101, 121>>
-  """
-  @spec encode_bytes(nil | binary) :: binary
-  def encode_bytes(nil), do: << -1 :: 32-signed >>
-  def encode_bytes(data) when is_binary(data) do
-    case byte_size(data) do
-      0 -> << -1 :: 32-signed >>
-      size -> << size :: 32-signed, data :: binary >>
-    end
-  end
-
-  def decode_bytes(<< -1 :: 32-signed, rest :: binary >>) do
-    {nil, rest}
-  end
-  def decode_bytes(<< size :: 32-signed, bytes :: size(size)-binary, rest :: binary >>) do
-    {bytes, rest}
-  end
-
-  @doc """
-  Encode string
-
-  ## Examples
-
-      iex> encode_string(nil)
-      <<255, 255>>
-
-      iex> encode_string("")
-      <<255, 255>>
-
-      iex> encode_string("hey")
-      <<0, 3, 104, 101, 121>>
-  """
-  @spec encode_string(nil | binary) :: binary
-  def encode_string(nil), do: << -1 :: 16-signed >>
-  def encode_string(data) when is_binary(data) do
-    case byte_size(data) do
-      0 -> << -1 :: 16-signed >>
-      size -> << size :: 16-signed, data :: binary >>
-    end
-  end
-
-  @doc """
-  Encode kafka array
-
-  ## Examples
-
-      iex> encode_array([], nil)
-      <<0, 0, 0, 0>>
-
-      iex> encode_array([1, 2, 3], fn x -> <<x :: 32-signed>> end)
-      [<<0, 0, 0, 3>>, [<<0, 0, 0, 1>>, <<0, 0, 0, 2>>, <<0, 0, 0, 3>>]]
-  """
-  def encode_array([], _), do: << 0 :: 32-signed >>
-  def encode_array(array, item_encoder) when is_list(array) do
-    [<< length(array) :: 32-signed >>, Enum.map(array, item_encoder)]
-  end
-
-  @doc """
-  Decode kafka array
-
-  ## Examples
-
-      iex> decode_array(<<0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2>>, fn <<x :: 32, rest :: binary>> -> {x, rest} end)
-      {[1, 2], <<>>}
-  """
-  def decode_array(<< num_items :: 32-signed, rest :: binary >>, item_decoder) do
-    decode_array_items(num_items, rest, item_decoder, [])
-  end
-
-  defp decode_array_items(0, rest, _, acc), do: {Enum.reverse(acc), rest}
-  defp decode_array_items(num_items, data, item_decoder, acc) do
-    {item, rest} = item_decoder.(data)
-    decode_array_items(num_items - 1, rest, item_decoder, [item|acc])
-  end
-
-  @doc """
-  Encode single kafka message
-
-  ## Examples
-
-      iex> encode_message(%Cafex.Protocol.Message{value: "hey"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
-
-      iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: ""})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
-
-      iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
-  """
-  @spec encode_message(Message.t) :: binary
-  def encode_message(%Message{magic_byte: magic_byte,
-                              attributes: attributes,
-                              offset: offset,
-                              key: key,
-                              value: value}) do
-    sub = << magic_byte :: 8, attributes :: 8,
-             encode_bytes(key) :: binary, encode_bytes(value) :: binary >>
-    crc = :erlang.crc32(sub)
-    msg = << crc :: 32, sub :: binary >>
-    << offset :: 64-signed, byte_size(msg) :: 32-signed, msg :: binary >>
-  end
-
-  @doc """
-  Decode message
-
-  ## Examples
-
-      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey"}, <<>>}
-
-      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey", key: nil}, <<>>}
-
-      iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey", key: "key"}, <<>>}
-  """
-  def decode_message(<< offset :: 64-signed,
-                        msg_size :: 32-signed, msg :: size(msg_size)-binary,
-                        rest :: binary >>) do
-    << _crc :: 32, magic :: 8, attributes :: 8, data :: binary >> = msg
-    {key, data} = decode_bytes(data)
-    {value,  _} = decode_bytes(data)
-    {%Message{key: key,
-              value: value,
-              magic_byte: magic,
-              attributes: attributes,
-              offset: offset}, rest}
-  end
-  def decode_message(rest) do
-    {nil, rest}
-  end
-
-  @doc """
-  Encode MessageSet
-  """
-  @spec encode_message_set([Message.t]) :: binary
-  def encode_message_set(messages) do
-    Enum.map(messages, &encode_message/1) |> IO.iodata_to_binary
-  end
-
-  @doc """
-  Decode MessageSet
-  """
-  @spec decode_message_set(binary) :: [Message.t]
-  def decode_message_set(data) do
-    decode_message_set_item(data, [])
-  end
-
-  defp decode_message_set_item(<<>>, acc), do: Enum.reverse(acc)
-  defp decode_message_set_item(data, acc) do
-    {msg, rest} = decode_message(data)
-    case msg do
-      nil ->
-        decode_message_set_item(<<>>, acc)
-      msg ->
-        decode_message_set_item(rest, [msg|acc])
+    quote do
+      defimpl Cafex.Protocol.Request do
+        unquote(impls)
+      end
     end
   end
 end

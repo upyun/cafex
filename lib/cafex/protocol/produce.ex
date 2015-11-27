@@ -1,34 +1,21 @@
 defmodule Cafex.Protocol.Produce do
-  @behaviour Cafex.Protocol.Decoder
+  use Cafex.Protocol, api_key: 0
 
-  defmodule Request do
-    use Cafex.Protocol
-
-    @api_key 0
-
-    defstruct required_acks: 0,
-              timeout: 0,
-              messages: []
-
-    @type t :: %Request{ required_acks: binary,
-                         timeout: integer,
-                         messages: [Cafex.Protocol.Message.t] }
-
-    def encode(request) do
-      Cafex.Protocol.Produce.encode(request)
-    end
-
-    def has_response?(%Request{required_acks: 0}), do: false
-    def has_response?(%Request{required_acks: _}), do: true
+  defrequest do
+    field :required_acks, [default: 0], binary
+    field :timeout, integer
+    field :messages, [Cafex.Protocol.Message.t]
   end
 
-  defmodule Response do
-    @type t :: [topic]
+  defresponse do
+    field :topics, [topic]
     @type topic :: {topic :: String.t, [partition]}
     @type partition :: %{partition: integer,
-                         error: Cafex.Protocol.Errors.t,
+                         error: Cafex.Protocol.error,
                          offset: integer}
   end
+  def has_response?(%Request{required_acks: 0}), do: false
+  def has_response?(%Request{required_acks: _}), do: true
 
   def encode(%Request{required_acks: required_acks,
                       timeout: timeout,
@@ -42,10 +29,10 @@ defmodule Cafex.Protocol.Produce do
   def encode_messages(messages) do
     messages
     |> group_by_topic
-    |> Cafex.Protocol.encode_array(fn {topic, partitions} ->
-      [Cafex.Protocol.encode_string(topic),
-       Cafex.Protocol.encode_array(partitions, fn {partition, messages} ->
-         msg_bin = Cafex.Protocol.encode_message_set(messages)
+    |> encode_array(fn {topic, partitions} ->
+      [encode_string(topic),
+       encode_array(partitions, fn {partition, messages} ->
+         msg_bin = encode_message_set(messages)
          << partition :: 32-signed, byte_size(msg_bin) :: 32-signed, msg_bin :: binary >>
        end)]
     end)
@@ -64,18 +51,19 @@ defmodule Cafex.Protocol.Produce do
 
   @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
-    {response, _} = Cafex.Protocol.decode_array(data, &parse_response/1)
+    # TODO
+    {response, _} = decode_array(data, &parse_response/1)
     response
   end
 
   defp parse_response(<< topic_size :: 16-signed, topic :: size(topic_size)-binary, rest :: binary >>) do
-    {partitions, rest} = Cafex.Protocol.decode_array(rest, &parse_partition/1)
+    {partitions, rest} = decode_array(rest, &parse_partition/1)
     {{topic, partitions}, rest}
   end
 
   defp parse_partition(<< partition :: 32-signed, error_code :: 16-signed, offset :: 64, rest :: binary >>) do
     {%{ partition: partition,
-        error: Cafex.Protocol.Errors.error(error_code),
+        error: decode_error(error_code),
         offset: offset}, rest}
   end
 end

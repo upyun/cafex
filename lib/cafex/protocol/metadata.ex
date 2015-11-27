@@ -1,41 +1,37 @@
 defmodule Cafex.Protocol.Metadata do
-  @behaviour Cafex.Protocol.Decoder
+  use Cafex.Protocol, api_key: 3
 
-  defmodule Request do
-    use Cafex.Protocol
-
-    @api_key 3
-
-    defstruct topics: []
-
-    @type t :: %Request{topics: [binary]}
-
-    def encode(%Request{topics: topics}) do
-      topics
-      |> Cafex.Protocol.encode_array(&Cafex.Protocol.encode_string/1)
-      |> IO.iodata_to_binary
-    end
+  defrequest do
+    field :topics, [default: []], [binary]
   end
 
-  defmodule Response do
-    defstruct brokers: [], topics: []
+  defresponse do
+    field :brokers, [broker]
+    field :topics, [topic]
 
-    @type t :: %Response{brokers: [%{node_id: integer,
-                                     host: binary,
-                                     port: 0..65535}],
-                         topics: [%{error: Cafex.Protocol.Errors.t,
-                                    name: binary,
-                                    partitions: [%{error: Cafex.Protocol.Errors.t,
-                                                   partition_id: integer,
-                                                   leader: integer,
-                                                   replicas: [integer],
-                                                   isrs: [integer]}]}]}
+    @type broker :: %{node_id: integer,
+                      host: binary,
+                      port: 0..65535}
+    @type topic :: %{error: Cafex.Protocol.error,
+                     name: binary,
+                     partitions: [partition]}
+    @type partition :: %{error: Cafex.Protocol.error,
+                         partition_id: integer,
+                         leader: integer,
+                         replicas: [integer],
+                         isrs: [integer]}
+  end
+
+  def encode(%Request{topics: topics}) do
+    topics
+    |> encode_array(&Cafex.Protocol.encode_string/1)
+    |> IO.iodata_to_binary
   end
 
   @spec decode(binary) :: Response.t
   def decode(data) when is_binary(data) do
-    {brokers, rest} = Cafex.Protocol.decode_array(data, &parse_broker/1)
-    {topics,     _} = Cafex.Protocol.decode_array(rest, &parse_topic/1)
+    {brokers, rest} = decode_array(data, &parse_broker/1)
+    {topics,     _} = decode_array(rest, &parse_topic/1)
     %Response{brokers: brokers, topics: topics}
   end
 
@@ -47,15 +43,15 @@ defmodule Cafex.Protocol.Metadata do
 
   defp parse_topic(<< error_code :: 16-signed, topic_len :: 16-signed,
                       topic :: size(topic_len)-binary, rest :: binary >>) do
-    {partitions, rest} = Cafex.Protocol.decode_array(rest, &parse_partition/1)
-    {%{error: Cafex.Protocol.Errors.error(error_code), name: topic, partitions: partitions}, rest}
+    {partitions, rest} = decode_array(rest, &parse_partition/1)
+    {%{error: decode_error(error_code), name: topic, partitions: partitions}, rest}
   end
 
   defp parse_partition(<< error_code :: 16-signed, partition_id :: 32-signed,
                           leader :: 32-signed, rest :: binary >>) do
-    {replicas, rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
-    {isrs,     rest} = Cafex.Protocol.decode_array(rest, &parse_int32/1)
-    {%{error: Cafex.Protocol.Errors.error(error_code),
+    {replicas, rest} = decode_array(rest, &parse_int32/1)
+    {isrs,     rest} = decode_array(rest, &parse_int32/1)
+    {%{error: decode_error(error_code),
        partition_id: partition_id,
        leader: leader,
        replicas: replicas,
