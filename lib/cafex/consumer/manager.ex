@@ -57,6 +57,12 @@ defmodule Cafex.Consumer.Manager do
 
   require Logger
 
+  alias Cafex.Util
+  alias Cafex.Connection
+  alias Cafex.Protocol.ConsumerMetadata
+  alias Cafex.Consumer.Worker
+  alias Cafex.Consumer.WorkerPartition
+  alias Cafex.Topic.Server, as: Topic
   @zk_timeout 5000
   @default_client_id "cafex"
 
@@ -89,19 +95,12 @@ defmodule Cafex.Consumer.Manager do
               leaders: nil,
               partitions: nil,
               worker_cfg: nil,
-              workers: HashDict.new,
-              r_workers: HashDict.new,
+              workers: WorkerPartition.new,
               trefs: HashDict.new,
               offset_storage: :kafka,
               coordinator: nil,
               leader: {false, nil}
   end
-
-  alias Cafex.Util
-  alias Cafex.Connection
-  alias Cafex.Protocol.ConsumerMetadata
-  alias Cafex.Consumer.Worker
-  alias Cafex.Topic.Server, as: Topic
 
   # ===================================================================
   # API
@@ -275,9 +274,9 @@ defmodule Cafex.Consumer.Manager do
     state = try_restart_worker(pid, state)
     {:noreply, state}
   end
-  def handle_info({:EXIT, pid, :lock_timeout}, %{r_workers: r_workers, trefs: trefs} = state) do
+  def handle_info({:EXIT, pid, :lock_timeout}, %{workers: workers, trefs: trefs} = state) do
     # worker lock_timeout, wait for sometimes and then restart it
-    state = case HashDict.get(r_workers, pid) do
+    state = case WorkerPartition.partition(workers, pid) do
       nil -> state
       partition ->
         tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
@@ -288,8 +287,8 @@ defmodule Cafex.Consumer.Manager do
   def handle_info({:EXIT, _pid, :normal}, state) do
     {:noreply, state}
   end
-  def handle_info({:EXIT, pid, reason}, %{r_workers: r_workers, trefs: trefs} = state) do
-    state = case HashDict.get(r_workers, pid) do
+  def handle_info({:EXIT, pid, reason}, %{workers: workers, trefs: trefs} = state) do
+    state = case WorkerPartition.partition(workers, pid) do
       nil -> state
       partition ->
         Logger.info fn -> "Worker #{inspect pid} for partition #{inspect partition} stopped with the reason: #{inspect reason}, try to restart it" end
@@ -487,7 +486,7 @@ defmodule Cafex.Consumer.Manager do
     case Cafex.ZK.Util.get_data(zk, balance_node, self) do
       {:ok, {data, _stat}} ->
         partitions = decode_partitions(data)
-        should_stop = HashDict.keys(workers) -- partitions
+        should_stop = WorkerPartition.partitions(workers) -- partitions
 
         state =
         Enum.reduce should_stop, state, fn partition, acc ->
@@ -502,37 +501,37 @@ defmodule Cafex.Consumer.Manager do
     end
   end
 
-  defp try_restart_worker(pid, %{workers: workers, r_workers: r_workers} = state) do
-    case HashDict.get(r_workers, pid) do
+  defp try_restart_worker(pid, %{workers: workers} = state) do
+    case WorkerPartition.partition(workers, pid) do
       nil -> state
       partition ->
-        state = %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)}
+        state = %{state | workers: WorkerPartition.delete(workers, partition, pid)}
         start_worker partition, state
     end
   end
 
-  defp start_worker(partition, %{workers: workers, r_workers: r_workers} = state) do
-    case HashDict.get(workers, partition) do
+  defp start_worker(partition, %{workers: workers} = state) do
+    case WorkerPartition.worker(workers, partition) do
       nil ->
         {:ok, pid} = do_start_worker(partition, state)
-        %{state | workers: HashDict.put(workers, partition, pid), r_workers: HashDict.put(r_workers, pid, partition)}
+        %{state | workers: WorkerPartition.update(workers, partition, pid)}
       pid ->
         case Process.alive?(pid) do
           false ->
-            start_worker(partition, %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)})
+            start_worker(partition, %{state | workers: WorkerPartition.delete(workers, partition, pid)})
           true ->
             state
         end
     end
   end
 
-  defp stop_worker(partition, %{workers: workers, r_workers: r_workers} = state) do
-    case HashDict.get(workers, partition) do
+  defp stop_worker(partition, %{workers: workers} = state) do
+    case WorkerPartition.worker(workers, partition) do
       nil ->
         state
       pid ->
         if Process.alive?(pid), do: Worker.stop(pid)
-        %{state | workers: HashDict.delete(workers, partition), r_workers: HashDict.delete(r_workers, pid)}
+        %{state | workers: WorkerPartition.delete(workers, partition, pid)}
     end
   end
 
@@ -552,10 +551,10 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp stop_workers(%{workers: workers} = state) do
-    Enum.each workers, fn {_, pid} ->
+    Enum.each WorkerPartition.workers(workers), fn pid ->
       if Process.alive?(pid), do: Worker.stop(pid)
     end
-    %{state | workers: HashDict.new, r_workers: HashDict.new}
+    %{state | workers: WorkerPartition.new}
   end
 
   defp start_offset_coordinator(%{group_name: group,
