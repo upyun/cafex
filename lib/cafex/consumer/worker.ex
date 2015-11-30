@@ -199,7 +199,12 @@ defmodule Cafex.Consumer.Worker do
                                          hwm_offset: offset} = state) do
     case response do
       {:ok, %{topics: [{^topic, [%{error: :no_error, messages: messages, hwm_offset: hwm_offset}]}]}} ->
-        {:ok, %{state | buffer: buffer ++ messages, hwm_offset: hwm_offset}}
+        buffer = buffer ++ messages
+        hwm_offset = case List.last(buffer) do
+          nil -> hwm_offset
+          msg -> msg.offset + 1
+        end
+        {:ok, %{state | buffer: buffer, hwm_offset: hwm_offset}}
       {:ok, %{topics: [{^topic, [%{error: :not_leader_for_partition = reason}]}]}} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
         {:error, :not_leader_for_partition, state}
