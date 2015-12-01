@@ -1,4 +1,5 @@
 defmodule Cafex.Protocol.Message do
+  alias __MODULE__, as: Message
   defstruct topic: nil,
             partition: nil,
             value: nil,
@@ -8,24 +9,24 @@ defmodule Cafex.Protocol.Message do
             attributes: 0,
             metadata: nil
 
-  @type t :: %Cafex.Protocol.Message{ topic: binary,
-                                      partition: integer,
-                                      value: binary,
-                                      key: binary,
-                                      offset: integer,
-                                      magic_byte: integer,
-                                      attributes: integer,
-                                      metadata: term }
+  @type t :: %Message{ topic: binary,
+                       partition: integer,
+                       value: binary,
+                       key: binary,
+                       offset: integer,
+                       magic_byte: integer,
+                       attributes: integer,
+                       metadata: term }
 
   @type tuple_message :: {topic :: String.t, partition :: integer, value :: binary} |
                          {topic :: String.t, partition :: integer, value :: binary, key :: binary}
 
-  @spec from_tuple(tuple_message) :: Cafex.Protocol.Message.t
+  @spec from_tuple(tuple_message) :: Message.t
   def from_tuple({topic, partition, value}), do: from_tuple({topic, partition, value, nil})
   def from_tuple({topic, partition, value, key}) do
-    %Cafex.Protocol.Message{ topic: topic,
-                             partition: partition,
-                             value: value,
-                             key: key }
+    %Message{ topic: topic,
+              partition: partition,
+              value: value,
+              key: key }
   end
 end

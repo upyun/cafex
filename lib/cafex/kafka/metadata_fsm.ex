@@ -81,7 +81,7 @@ defmodule Cafex.Kafka.MetadataFsm do
         :ok
       end
 
-      def do_request(%{conn: conn, request: {request, decoder}} = state) do
+      def do_request(%{conn: conn, request: request} = state) do
         case send_request(state) do
           {:ok, result} -> %{state | result: result}
           {:error, error} -> %{state | error: error}
@@ -128,8 +128,8 @@ defmodule Cafex.Kafka.MetadataFsm do
     %{state|conn: nil}
   end
 
-  def send_request(%State{conn: conn, request: {request, decoder}}) do
-    Connection.request(conn, request, decoder)
+  def send_request(%State{conn: conn, request: request}) do
+    Connection.request(conn, request)
   end
 
 end

@@ -3,12 +3,10 @@ defmodule Cafex.Kafka.Metadata do
 
   require Logger
 
-  alias Cafex.Protocol.Metadata
   alias Cafex.Protocol.Metadata.Request
 
   def make_request(topic) do
-    request = %Request{topics: [topic]}
-    {request, Metadata}
+    %Request{topics: [topic]}
   end
 
   def extract_metadata(metadata) do

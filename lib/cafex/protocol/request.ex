@@ -26,4 +26,9 @@ defprotocol Cafex.Protocol.Request do
   Encode the request struct to binary
   """
   def encode(req)
+
+  @doc """
+  Return the decoder module of the response
+  """
+  def decoder(req)
 end

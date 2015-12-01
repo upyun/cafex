@@ -2,12 +2,10 @@ defmodule Cafex.Kafka.ConsumerMetadata do
   use Cafex.Kafka.MetadataFsm
 
   require Logger
-  alias Cafex.Protocol.ConsumerMetadata
   alias Cafex.Protocol.ConsumerMetadata.Request
 
   def make_request(group) do
-    request = %Request{consumer_group: group}
-    {request, ConsumerMetadata}
+    %Request{consumer_group: group}
   end
 
   def do_request(state) do

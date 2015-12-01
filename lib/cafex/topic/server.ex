@@ -17,9 +17,6 @@ defmodule Cafex.Topic.Server do
   end
 
   alias Cafex.Connection
-  alias Cafex.Protocol.Metadata
-  alias Cafex.Protocol.Fetch
-  alias Cafex.Protocol.Offset
   alias Cafex.Protocol.Fetch.Request,    as: FetchRequest
   alias Cafex.Protocol.Offset.Request,   as: OffsetRequest
   alias Cafex.Protocol.Metadata.Request, as: MetadataRequest
@@ -159,7 +156,7 @@ defmodule Cafex.Topic.Server do
 
     request = %MetadataRequest{ topics: [topic] }
 
-    case Connection.request(conn_pid, request, Metadata) do
+    case Connection.request(conn_pid, request) do
       {:ok, %{topics: [%{error: :unknown_topic_or_partition}]}} ->
         throw :unknown_topic_or_partition
       {:ok, %{topics: [%{error: :leader_not_available}]}} ->
@@ -205,7 +202,7 @@ defmodule Cafex.Topic.Server do
                             topics: [{name, [{partition, offset, @max_bytes}]}]}
     {:ok, pid} = Connection.start_link(host, port)
     try do
-      Connection.request(pid, request, Fetch)
+      Connection.request(pid, request)
     after
       Connection.close(pid)
     end
@@ -224,7 +221,7 @@ defmodule Cafex.Topic.Server do
     request = %OffsetRequest{topics: [{name, [{partition, time, max}]}]}
     {:ok, pid} = Connection.start_link(host, port)
     try do
-      Connection.request(pid, request, Offset)
+      Connection.request(pid, request)
     after
       Connection.close(pid)
     end

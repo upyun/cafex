@@ -24,7 +24,6 @@ defmodule Cafex.Consumer.Coordinator do
   end
 
   alias Cafex.Connection
-  alias Cafex.Protocol.Offset
   alias Cafex.Protocol.Offset.Request, as: OffsetRequest
   alias Cafex.Protocol.OffsetCommit
   alias Cafex.Protocol.OffsetFetch
@@ -126,7 +125,7 @@ defmodule Cafex.Consumer.Coordinator do
       :kafka     -> %{request | api_version: 1}
     end
 
-    case Connection.request(conn, request, OffsetFetch) do
+    case Connection.request(conn, request) do
       {:ok, %{topics: [{^topic, [{^partition, offset, metadata, :no_error}]}]}} ->
         {:ok, {offset, metadata}}
       {:ok, %{topics: [{^topic, [{^partition, _, _, error}]}]}} ->
@@ -183,7 +182,7 @@ defmodule Cafex.Consumer.Coordinator do
 
     # TODO
     # Handle every partition errors
-    case Connection.request(conn, request, OffsetCommit) do
+    case Connection.request(conn, request) do
       {:ok, %{topics: [{^topic, partitions}]}} -> {:ok, partitions}
       {:error, reason} ->
         {:error, reason}
@@ -192,7 +191,7 @@ defmodule Cafex.Consumer.Coordinator do
 
   defp get_earliest_offset(topic, partition, conn) when is_integer(partition) do
     request = %OffsetRequest{topics: [{topic, [{partition, :earliest, 1}]}]}
-    case Connection.request(conn, request, Offset) do
+    case Connection.request(conn, request) do
       {:ok, %{offsets: [{_, [%{error: :no_error, offsets: [offset]}]}]}} ->
         {:ok, {offset, ""}}
       {:ok, %{offsets: [{_, [%{error: :no_error, offsets: []}]}]}} ->

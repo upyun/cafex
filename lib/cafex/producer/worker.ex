@@ -18,7 +18,6 @@ defmodule Cafex.Producer.Worker do
   end
 
   alias Cafex.Connection
-  alias Cafex.Protocol.Produce
   alias Cafex.Protocol.Produce.Request
 
   # ===================================================================
@@ -163,7 +162,7 @@ defmodule Cafex.Producer.Worker do
                         timeout: timeout,
                         messages: messages }
 
-    case Connection.request(conn, request, Produce) do
+    case Connection.request(conn, request) do
       {:ok, [{^topic, [%{error: :no_error, partition: ^partition}]}]} ->
         replies = Enum.map(message_pairs, fn {from, _} ->
           {from, :ok}
