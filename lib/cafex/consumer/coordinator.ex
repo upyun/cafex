@@ -142,8 +142,8 @@ defmodule Cafex.Consumer.Coordinator do
                                                                    group: group,
                                                                    topic: topic} = state) do
     reply = case offset_commit(storage, conn, group, topic, [{partition, offset, metadata}]) do
-      {:ok, %{topics: [{^topic, [{^partition, :no_error}]}]}} -> :ok
-      {:ok, %{topics: [{^topic, [{^partition, error}]}]}} -> {:error, error}
+      {:ok, [{^partition, :no_error}]} -> :ok
+      {:ok, [{^partition, error}]} -> {:error, error}
       {:error, _reason} = error -> error
     end
 
