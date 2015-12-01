@@ -23,13 +23,11 @@ defmodule Cafex.Producer do
   require Logger
 
   alias Cafex.Protocol.Message
-  alias Cafex.Topic.Server, as: Topic
 
   defmodule State do
     @moduledoc false
     defstruct topic: nil,
               topic_name: nil,
-              topic_pid: nil,
               feed_brokers: [],
               partitioner: nil,
               partitioner_state: nil,
@@ -110,8 +108,7 @@ defmodule Cafex.Producer do
                      # max_request_size: max_request_size,
                      linger_ms: linger_ms,
                      timeout: @default_timeout
-                   ]} |> start_topic_server
-                      |> load_metadata
+                   ]} |> load_metadata
                       |> start_workers
 
     partitioner = Keyword.get(opts, :partitioner, Cafex.Partitioner.Random)
@@ -126,27 +123,22 @@ defmodule Cafex.Producer do
     {:reply, worker, state}
   end
 
-  def handle_info({:EXIT, pid, reason}, %{topic_pid: pid} = state) do
-    Logger.warn "Topic server exit: #{inspect reason}"
-    {:noreply, start_topic_server(state)}
-  end
   def handle_info({:EXIT, pid, reason}, %{workers: workers} = state) do
-    Logger.error "Producer worker down: #{inspect reason}"
     state =
       case Enum.find(workers, fn {_k, v} -> v == pid end) do
         nil ->
           state
         {k, _} ->
+          Logger.error "Producer worker down: #{inspect reason}, restarting"
           start_worker(k, %{state | workers: HashDict.delete(workers, k)})
       end
     {:noreply, state}
   end
 
-  def terminate(_reason, %{workers: workers}=state) do
+  def terminate(_reason, %{workers: workers}=_state) do
     for {_, pid} <- workers do
       Cafex.Producer.Worker.stop pid
     end
-    stop_topic_server state
     :ok
   end
 
@@ -168,8 +160,9 @@ defmodule Cafex.Producer do
     {worker_pid, state}
   end
 
-  defp load_metadata(%{topic_pid: topic_pid} = state) do
-    metadata = Topic.metadata topic_pid
+  defp load_metadata(%{feed_brokers: brokers, topic_name: topic} = state) do
+    {:ok, metadata} = Cafex.Kafka.Metadata.request(brokers, topic)
+    metadata = Cafex.Kafka.Metadata.extract_metadata(metadata)
 
     %{state | topic: metadata.name,
               brokers: metadata.brokers,
@@ -193,14 +186,4 @@ defmodule Cafex.Producer do
     %{state | workers: HashDict.put(workers, partition, pid)}
   end
 
-  defp start_topic_server(%{topic_name: topic_name, feed_brokers: brokers, client_id: client_id} = state) do
-    {:ok, pid} = Topic.start_link(topic_name, brokers, client_id: client_id)
-    %{state|topic_pid: pid}
-  end
-
-  defp stop_topic_server(%{topic_pid: nil} = state), do: state
-  defp stop_topic_server(%{topic_pid: pid} = state) do
-    Topic.stop(pid)
-    %{state|topic_pid: nil}
-  end
 end

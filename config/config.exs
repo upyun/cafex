@@ -26,6 +26,9 @@ use Mix.Config
 config :cafex, :myconsumer,
   client_id: "cafex",
   offset_storage: :kafka,
+  auto_commit: true,
+  auto_commit_interval: 500, # ms
+  auto_commit_max_buffers: 50,
   zookeeper: [
     timeout: 5000,
     servers: [{"192.168.99.100", 2181}],

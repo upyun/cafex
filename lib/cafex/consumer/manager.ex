@@ -58,11 +58,9 @@ defmodule Cafex.Consumer.Manager do
   require Logger
 
   alias Cafex.Util
-  alias Cafex.Connection
-  alias Cafex.Protocol.ConsumerMetadata
   alias Cafex.Consumer.Worker
   alias Cafex.Consumer.WorkerPartition
-  alias Cafex.Topic.Server, as: Topic
+
   @zk_timeout 5000
   @default_client_id "cafex"
 
@@ -79,7 +77,6 @@ defmodule Cafex.Consumer.Manager do
     defstruct group_name: nil,
               client_id: nil,
               topic_name: nil,
-              topic_pid: nil,
               feed_brokers: [],
               zk_servers: nil,
               zk_path: nil,
@@ -97,7 +94,9 @@ defmodule Cafex.Consumer.Manager do
               worker_cfg: nil,
               workers: WorkerPartition.new,
               trefs: HashDict.new,
-              offset_storage: :kafka,
+              coordinator_cfg: [
+                offset_storage: :kafka
+              ],
               coordinator: nil,
               leader: {false, nil}
   end
@@ -156,10 +155,15 @@ defmodule Cafex.Consumer.Manager do
                     feed_brokers: brokers,
                     handler: handler,
                     worker_cfg: worker_cfg,
+                    coordinator_cfg: [
+                      offset_storage: Util.get_config(opts, cfg, :offset_storage),
+                      auto_commit: Util.get_config(opts, cfg, :auto_commit),
+                      interval: Util.get_config(opts, cfg, :auto_commit_interval),
+                      max_buffers: Util.get_config(opts, cfg, :auto_commit_max_buffers)
+                    ],
                     zk_servers: zk_servers,
                     zk_timeout: zk_timeout,
                     zk_path: zk_path }
-            |> start_topic_server
             |> load_metadata
             |> zk_connect
             |> zk_register
@@ -255,10 +259,6 @@ defmodule Cafex.Consumer.Manager do
   end
 
   # handle linked process EXIT
-  def handle_info({:EXIT, pid, reason}, %{topic_pid: pid} = state) do
-    Logger.warn "Topic server exit: #{inspect reason}"
-    {:noreply, start_topic_server(state)}
-  end
   def handle_info({:EXIT, pid, reason}, %{zk_pid: pid} = state) do
     Logger.error "ZooKeeper connection exit with reason: #{inspect reason}, stop cusumer."
     {:stop, reason, %{state|zk_pid: nil}}
@@ -307,7 +307,6 @@ defmodule Cafex.Consumer.Manager do
           |> stop_workers
           |> zk_close   # if zk close before wokers stopped, workers cannot release lock
           |> stop_offset_coordinator
-          |> stop_topic_server
     :ok
   end
 
@@ -315,19 +314,9 @@ defmodule Cafex.Consumer.Manager do
   #  Internal functions
   # ===================================================================
 
-  defp start_topic_server(%{topic_name: topic_name, feed_brokers: brokers, client_id: client_id} = state) do
-    {:ok, pid} = Topic.start_link(topic_name, brokers, client_id: client_id)
-    %{state|topic_pid: pid}
-  end
-
-  defp stop_topic_server(%{topic_pid: nil} = state), do: state
-  defp stop_topic_server(%{topic_pid: pid} = state) do
-    Topic.stop(pid)
-    %{state|topic_pid: nil}
-  end
-
-  defp load_metadata(%{topic_pid: topic_pid} = state) do
-    metadata = Topic.metadata topic_pid
+  defp load_metadata(%{feed_brokers: brokers, topic_name: topic} = state) do
+    {:ok, metadata} = Cafex.Kafka.Metadata.request(brokers, topic)
+    metadata = Cafex.Kafka.Metadata.extract_metadata(metadata)
     %{state | brokers: metadata.brokers,
               leaders: metadata.leaders,
               partitions: metadata.partitions}
@@ -540,6 +529,7 @@ defmodule Cafex.Consumer.Manager do
                                     brokers: brokers,
                                     leaders: leaders,
                                     handler: handler,
+                                    client_id: client_id,
                                     worker_cfg: worker_cfg,
                                     coordinator: coordinator,
                                     zk_pid: zk_pid,
@@ -547,6 +537,7 @@ defmodule Cafex.Consumer.Manager do
     Logger.info fn -> "Starting consumer worker: #{topic}:#{group}:#{partition}" end
     leader = HashDict.get(leaders, partition)
     broker = HashDict.get(brokers, leader)
+    worker_cfg = Keyword.merge([client_id: client_id], worker_cfg)
     Worker.start_link(coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, worker_cfg)
   end
 
@@ -559,12 +550,11 @@ defmodule Cafex.Consumer.Manager do
 
   defp start_offset_coordinator(%{group_name: group,
                                      brokers: brokers,
-                                   topic_pid: topic_pid,
                                   partitions: partitions,
                                   topic_name: topic_name,
-                              offset_storage: offset_storage} = state) do
-    {:ok, {host, port}} = get_coordinator(group, HashDict.values(brokers))
-    {:ok, pid} = Cafex.Consumer.Coordinator.start_link({host, port}, topic_pid, partitions, group, topic_name, offset_storage)
+                             coordinator_cfg: cfg} = state) do
+    {:ok, {host, port}} = Cafex.Kafka.ConsumerMetadata.request(HashDict.values(brokers), group)
+    {:ok, pid} = Cafex.Consumer.Coordinator.start_link({host, port}, partitions, group, topic_name, cfg)
     %{state | coordinator: pid}
   end
 
@@ -572,54 +562,5 @@ defmodule Cafex.Consumer.Manager do
   defp stop_offset_coordinator(%{coordinator: pid} = state) do
     Cafex.Consumer.Coordinator.stop(pid)
     %{state | coordinator: nil}
-  end
-
-  defp get_coordinator(group, brokers) do
-    {:ok, pid} = broker_connect(brokers)
-    request = %ConsumerMetadata.Request{consumer_group: group}
-    reply = try_fetch_consumer_metadata(pid, request)
-    Connection.close(pid)
-    reply
-  end
-
-  defp try_fetch_consumer_metadata(conn, request) do
-    try_fetch_consumer_metadata(conn, request, 10)
-  end
-  defp try_fetch_consumer_metadata(_conn, _request, 0) do
-    {:error, :consumer_coordinator_not_available}
-  end
-  defp try_fetch_consumer_metadata(conn, request, retries) when is_integer(retries) and retries > 0 do
-    case Connection.request(conn, request, ConsumerMetadata) do
-      {:ok, %{error: :no_error, coordinator_host: host, coordinator_port: port}} ->
-        {:ok, {host, port}}
-      {:ok, %{error: :consumer_coordinator_not_available}} ->
-        # We have to send a ConsumerMetadataRequest and retry with back off if
-        # you receive a ConsumerCoordinatorNotAvailableCode returned as an
-        # error.
-        # See
-        # [Kafka Error Codes](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-ErrorCodes)
-        # [issue on StackOverflow](http://stackoverflow.com/questions/28513744/kafka-0-8-2-consumermetadatarequest-always-return-consumercoordinatornotavailabl)
-        Logger.warn "Try fetch consumer metadata error: :consumer_coordinator_not_available, retry"
-        :timer.sleep(2000)
-        try_fetch_consumer_metadata(conn, request, retries - 1)
-      {:ok, %{error: code}} ->
-        Logger.error "Try fetch consumer metadata error: #{inspect code}"
-        {:error, code}
-      {:error, reason} ->
-        Logger.error "Try fetch consumer metadata error: #{inspect reason}"
-        {:error, reason}
-    end
-  end
-
-  defp broker_connect(brokers), do: broker_connect(brokers, :no_broker)
-
-  defp broker_connect([], reason), do: {:error, reason}
-  defp broker_connect([{host, port}|rest], _) do
-    case Connection.start(host, port) do
-      {:ok, pid} ->
-        {:ok, pid}
-      {:error, reason} ->
-        broker_connect(rest, reason)
-    end
   end
 end

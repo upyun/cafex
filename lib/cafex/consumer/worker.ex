@@ -6,6 +6,7 @@ defmodule Cafex.Consumer.Worker do
   @wait_time 100
   @min_bytes 32 * 1024
   @max_bytes 1024 * 1024
+  @client_id "cafex"
 
   @typedoc "Options used by the `start_link/9` functions"
   @type options :: [option]
@@ -18,6 +19,7 @@ defmodule Cafex.Consumer.Worker do
     @moduledoc false
     defstruct topic: nil,
               group: nil,
+              client_id: nil,
               partition: nil,
               broker: nil,
               wait_time: nil,
@@ -25,7 +27,7 @@ defmodule Cafex.Consumer.Worker do
               max_bytes: nil,
               zk_pid: nil,
               zk_path: nil,
-              conn: nil,
+              conn: nil, # partition leader connection
               lock: {false, nil},
               buffer: [],
               hwm_offset: 0,
@@ -38,7 +40,6 @@ defmodule Cafex.Consumer.Worker do
   alias Cafex.ZK.Lock
   alias Cafex.Connection
   alias Cafex.Protocol.Fetch
-  alias Cafex.Protocol.Fetch.Request, as: FetchRequest
   alias Cafex.Consumer.Coordinator
 
   # ===================================================================
@@ -64,6 +65,7 @@ defmodule Cafex.Consumer.Worker do
   def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
     state = %State{topic: topic,
                    group: group,
+                   client_id: Keyword.get(opts, :client_id, @client_id),
                    partition: partition,
                    broker: broker,
                    coordinator: coordinator,
@@ -108,10 +110,11 @@ defmodule Cafex.Consumer.Worker do
   def prepare(:timeout, %{partition: partition,
                           broker: {host, port},
                           handler: {handler, args},
+                          client_id: client_id,
                           coordinator: coordinator} = state) do
-    {:ok, conn} = Connection.start_link(host, port)
+    {:ok, conn} = Connection.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
-    {:ok, {offset, _}} = Coordinator.offset_fetch(coordinator, partition)
+    {:ok, {offset, _}} = Coordinator.offset_fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
                                         hwm_offset: offset,
                                         handler: handler,
@@ -186,7 +189,7 @@ defmodule Cafex.Consumer.Worker do
                         max_bytes: max_bytes,
                         conn: conn} = state) do
     # Logger.debug fn -> "Consumer[#{group}:#{topic}:#{partition}] fetching messages: offset = #{offset}" end
-    request = %FetchRequest{max_wait_time: wait_time,
+    request = %Fetch.Request{max_wait_time: wait_time,
                             min_bytes: min_bytes,
                             topics: [{topic, [{partition, offset, max_bytes}]}]}
     Connection.async_request(conn, request, Fetch, {:fsm, self})
