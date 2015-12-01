@@ -58,8 +58,8 @@ defmodule Cafex.Consumer.Coordinator do
                        group: group,
                   partitions: partitions,
                  auto_commit: Keyword.get(opts, :auto_commit, false),
-                    interval: Keyword.get(opts, :interval, @interval),
-                 max_buffers: Keyword.get(opts, :max_buffers, @max_buffers),
+                    interval: Keyword.get(opts, :interval) || @interval,
+                 max_buffers: Keyword.get(opts, :max_buffers) || @max_buffers,
               offset_storage: Keyword.get(opts, :offset_storage) || @offset_storage} |> start_conn
     {:ok, state}
   end
