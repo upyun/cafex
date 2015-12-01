@@ -55,7 +55,7 @@ defmodule Cafex.Consumer.Worker do
   end
 
   # ===================================================================
-  #  GenServer callbacks
+  #  :gen_fsm callbacks
   # ===================================================================
 
   @doc false
