@@ -59,22 +59,20 @@ defmodule Cafex.Consumer.Worker do
   # ===================================================================
 
   @doc false
-  def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, nil]) do
-    init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, []])
-  end
   def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
+    opts = opts || []
     state = %State{topic: topic,
                    group: group,
-                   client_id: Keyword.get(opts, :client_id, @client_id),
+                   client_id: Keyword.get(opts, :client_id) || @client_id,
                    partition: partition,
                    broker: broker,
                    coordinator: coordinator,
                    handler: handler,
                    zk_pid: zk_pid,
                    zk_path: zk_path,
-                   wait_time: Keyword.get(opts, :wait_time, @wait_time),
-                   min_bytes: Keyword.get(opts, :min_bytes, @min_bytes),
-                   max_bytes: Keyword.get(opts, :max_bytes, @max_bytes)}
+                   wait_time: Keyword.get(opts, :wait_time) || @wait_time,
+                   min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
+                   max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
     {:ok, :aquire_lock, state, 0}
   end
 

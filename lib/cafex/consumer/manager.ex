@@ -138,7 +138,6 @@ defmodule Cafex.Consumer.Manager do
     cfg        = Application.get_env(:cafex, name, [])
     client_id  = Util.get_config(opts, cfg, :client_id, @default_client_id)
     handler    = Util.get_config(opts, cfg, :handler)
-    worker_cfg = Util.get_config(opts, cfg, :worker)
     brokers    = Util.get_config(opts, cfg, :brokers)
     zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_servers = Keyword.get(zk_config, :servers, [{"127.0.0.1", 2181}])
@@ -148,6 +147,12 @@ defmodule Cafex.Consumer.Manager do
 
     group_name = Atom.to_string(name)
     Logger.info fn -> "Starting consumer: #{group_name} ..." end
+
+    worker_cfg = [
+      wait_time: Util.get_config(opts, cfg, :wait_time),
+      min_bytes: Util.get_config(opts, cfg, :min_bytes),
+      max_bytes: Util.get_config(opts, cfg, :max_bytes)
+    ]
 
     state = %State{ group_name: group_name,
                     client_id: client_id,

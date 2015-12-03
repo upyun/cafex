@@ -34,11 +34,9 @@ config :cafex, :myconsumer,
     servers: [{"192.168.99.100", 2181}],
     path: "/elena/cafex"
   ],
-  worker: [
-    wait_time: 100,
-    min_bytes: 32 * 1024,
-    max_bytes: 1024 * 1024
-  ],
+  wait_time: 100,
+  min_bytes: 32 * 1024,
+  max_bytes: 1024 * 1024,
   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
 
 config :cafex, :myconsumer2,
