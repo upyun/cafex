@@ -95,7 +95,7 @@ defmodule Cafex.Consumer.Coordinator do
     end
   end
 
-  def handle_info({:timeout, _timer, :do_commit}, %{count: 0}) do
+  def handle_info({:timeout, _timer, :do_commit}, %{count: 0} = state) do
     {:noreply, state}
   end
   def handle_info({:timeout, timer, :do_commit}, %{group: group,
