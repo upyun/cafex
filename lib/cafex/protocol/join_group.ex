@@ -8,7 +8,9 @@ defmodule Cafex.Protocol.JoinGroup do
     field :protocol_type, binary
     field :group_protocols, [group_protocol]
 
-    @type group_protocol :: {name :: binary, metadata :: binary}
+    @type group_protocol :: {name :: binary, protocol_metadata}
+    @type protocol_metadata :: {version :: integer, subscription :: [topic], user_data :: binary}
+    @type topic :: binary
   end
 
   defresponse do
@@ -19,7 +21,7 @@ defmodule Cafex.Protocol.JoinGroup do
     field :member_id, binary
     field :members, [member]
 
-    @type member :: {id :: binary, metadata :: binary}
+    @type member :: {id :: binary, metadata :: Request.protocol_metadata}
   end
 
   def encode(%{group_id: group_id,
@@ -55,14 +57,38 @@ defmodule Cafex.Protocol.JoinGroup do
 
   defp encode_group_protocol({name, metadata}) do
     [encode_string(name),
-     encode_bytes(metadata)]
+     encode_metadata(metadata)]
+  end
+
+  defp encode_metadata({version, subscription, user_data}) do
+    data = [<< version :: 16-signed >>,
+               encode_array(subscription, &encode_string/1),
+               encode_bytes(user_data)] |> IO.iodata_to_binary
+   len = byte_size(data)
+   << len :: 32-signed, data :: binary>>
+  end
+
+  defp parse_group_protocol(<< version :: 16-signed,
+                               rest :: binary >>) do
+    {subscription, rest} = decode_array(rest, &parse_topic/1)
+
+    user_data = decode_bytes(rest)
+
+    {version, subscription, user_data}
   end
 
   defp parse_member(<< member_id_len :: 16-signed,
-                        member_id :: size(member_id_len)-binary,
-                        metadata_len :: 32-signed,
-                        metadata :: size(metadata_len)-binary,
-                        rest :: binary>>) do
+                       member_id :: size(member_id_len)-binary,
+                       metadata_len :: 32-signed,
+                       metadata :: size(metadata_len)-binary,
+                       rest :: binary>>) do
+    metadata = parse_group_protocol(metadata)
     {{member_id, metadata}, rest}
+  end
+
+  defp parse_topic(<< len :: 16-signed,
+                      topic :: size(len)-binary,
+                      rest :: binary >>) do
+    {topic, rest}
   end
 end

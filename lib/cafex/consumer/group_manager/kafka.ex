@@ -14,6 +14,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
 
   @protocol_type "consumer"
   @protocol_name "cafex"
+  @protocol_version 0
   @timeout 6000
 
   defmodule State do
@@ -52,7 +53,6 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   @doc false
   def init([manager, topic, group, partitions, opts]) do
     # TODO
-    # Process.flag(:trap_exit, true)
     timeout = Keyword.get(opts, :timeout) || @timeout
     coordinator = Keyword.get(opts, :group_coordinator)
     offset_manager = Keyword.get(opts, :offset_manager)
@@ -76,11 +76,12 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   end
 
   @doc false
-  def rebalance(:timeout, %{leader?: true, members: members, partitions: partitions} = state) do
+  def rebalance(:timeout, %{leader?: true, topic: topic, members: members, partitions: partitions} = state) do
     Logger.info "I am leader now"
     rebalanced = LoadBalancer.rebalance(members, partitions)
     group_assignment = Enum.map(rebalanced, fn {member_id, assignment} ->
-      {member_id, encode_partitions(assignment)}
+      member_assignment = {@protocol_version, [{topic, assignment}], nil}
+      {member_id, member_assignment}
     end)
     {:ok, assignment} = do_sync_group(group_assignment, state)
     state = start_heartbeat(%{state | assignment: assignment, members: rebalanced})
@@ -108,12 +109,6 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   def handle_info({:no_heartbeat, _reason}, :idle, state) do
     {:next_state, :election, %{state | heartbeat: nil}, 0}
   end
-
-  # @doc false
-  # def handle_info({:EXIT, pid, :normal}, state_name, %{heartbeat: pid} = state_data) do
-  #   # TODO
-  #   {:next_state, state_name, %{state_data | heartbeat: nil}}
-  # end
 
   @doc false
   def code_change(_old, state_name, state_data, _extra) do
@@ -161,11 +156,13 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
 
   defp do_election(%{conn: conn,
                      group: group,
+                     topic: topic,
                      member_id: member_id,
                      assignment: assignment,
                      timeout: timeout,
                      offset_manager: offset_manager} = state) do
-    group_protocols = [{@protocol_type, encode_partitions(assignment)}]
+    protocol_metadata = {@protocol_version, [topic], encode_partitions(assignment)}
+    group_protocols = [{@protocol_name, protocol_metadata}]
     request = %JoinGroup.Request{group_id: group,
                                  session_timeout: timeout,
                                  member_id: member_id,
@@ -177,8 +174,8 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
               member_id: member_id,
               members: members}} ->
         leader? = length(members) > 0
-        members = Enum.map(members, fn {member_id, metadata} ->
-          {member_id, decode_partitions(metadata)}
+        members = Enum.map(members, fn {member_id, {_version, [_topic], user_data}} ->
+          {member_id, decode_partitions(user_data)}
         end)
         Cafex.Consumer.OffsetManager.update_generation_id(offset_manager, member_id, generation_id)
         %{state | leader?: leader?, member_id: member_id, generation_id: generation_id, members: members}
@@ -189,6 +186,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
 
   defp do_sync_group(group_assignment, %{conn: conn,
                                          group: group,
+                                         topic: topic,
                                          member_id: member_id,
                                          generation_id: generation_id}) do
     request = %SyncGroup.Request{group_id: group,
@@ -196,8 +194,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
                                  generation_id: generation_id,
                                  group_assignment: group_assignment}
     case Cafex.Connection.request(conn, request) do
-      {:ok, %{error: :no_error, member_assignment: assignment}} ->
-        assignment = decode_partitions(assignment)
+      {:ok, %{error: :no_error, member_assignment: {_version, [{^topic, assignment}], _user_data}}} ->
         {:ok, assignment}
       {:ok, %{error: error}} ->
         # TODO handle kafka response error
