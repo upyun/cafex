@@ -8,6 +8,7 @@ defmodule Cafex.Consul.Session do
   @default_ttl 10 * 1000
 
   defmodule State do
+    @moduledoc false
     defstruct [:id, :heartbeat]
   end
 

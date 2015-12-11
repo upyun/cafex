@@ -1,36 +1,36 @@
 defmodule Cafex.Consumer.Manager do
   @moduledoc """
-  This depends on ZooKeeper to rebalancing consumers
+  This module is the main manager for a high-level kafka consumer
 
-  ## zookeeper structure
+  ## structure
 
+  The manager works together with a offset manager and a group manager to
+  manage the consumer workers.
 
-  ```
-    /cafex
-     |-- topic
-     |  |-- group_name
-     |  |  |-- leader
-     |  |  |-- consumers
-     |  |  |  |-- balance
-     |  |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]     # persistent
-     |  |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]     # persistent
-     |  |  |  |  |-- cafex@192.168.0.3       - [8,9,10,11]   # persistent
-     |  |  |  |-- online
-     |  |  |  |  |-- cafex@192.168.0.1                       # ephemeral
-     |  |  |  |  |-- cafex@192.168.0.2                       # ephemeral
-     |  |  |  |-- offline
-     |  |  |  |  |-- cafex@192.168.0.3                       # persistent
-     |  |  |-- locks
-  ```
+  The group manager handles the client assignment via kafka(0.9) or zookeeper.
+  All consumers in a group will elect a group leader, and the leader collects
+  all the other consumers infomation in the group, performs the load balance
+  of partitions.
+
+  The offset manager is responsible for workers offset commit/fetch. It will
+  buffer the offset commit requests to improve the throughput.
 
   ## Options
 
   All this options must not be ommitted, expect `:client_id`.
 
-    * `:client_id`
-    * `:handler`
-    * `:worker`
-    * `:brokers`
+    * `:client_id`       Optional, default client_id is "cafex"
+    * `:handler`         Worker handler module
+    * `:brokers`         Kafka brokers list
+    * `:lock`            Indicate which lock implementation will be use in the worker, default is `:consul`, another option is `:zookeeper`
+    * `:group_manager`   Default group manager is `:kafka` which depends on the kafka server with 0.9.x or above.
+    * `:offset_storage`  Indicate where to store the consumer's offset, default is `:kafka`, another option is `:zookeeper`
+    * `:auto_commit`
+    * `:auto_commit_interval`
+    * `:auto_commit_max_buffers`
+    * `:fetch_wait_time`
+    * `:fetch_min_bytes`
+    * `:fetch_max_bytes`
     * `:zookeeper`
 
   These options for `start_link/3` can be put under the `:cafex` key in the `config/config.exs` file:
@@ -70,11 +70,26 @@ defmodule Cafex.Consumer.Manager do
   @typedoc "Options used by the `start_link/3` functions"
   @type options :: [option]
 
-  @type option :: {:client_id, Cafex.client_id} |
+  @type server :: {host :: String.t, port :: 0..65535}
+  @type broker :: server
+  @type client_id :: String.t
+  @type zookeeper :: [zookeeper_option]
+  @type zookeeper_option :: {:servers, [server]} |
+                            {:path, String.t} |
+                            {:timeout, non_neg_integer}
+  @type option :: {:client_id, client_id} |
                   {:handler, Cafex.Consumer.Worker.handler} |
-                  {:worker, Cafex.Consumer.Worker.options} |
                   {:brokers, [Cafex.broker]} |
-                  {:zooKeeper, Cafex.zookeeper}
+                  {:fetch_wait_time, integer} |
+                  {:fetch_min_bytes, integer} |
+                  {:fetch_max_bytes, integer} |
+                  {:auto_commit, boolean} |
+                  {:auto_commit_interval, integer} |
+                  {:auto_commit_max_buffers, integer} |
+                  {:lock, :consul | :zookeeper} |
+                  {:group_manager, :kafka | :zookeeper} |
+                  {:offset_storage, :kafka | :zookeeper} |
+                  {:zooKeeper, zookeeper}
   defmodule State do
     @moduledoc false
     defstruct group: nil,

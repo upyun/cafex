@@ -11,7 +11,13 @@ defmodule Cafex.Protocol.Decoder do
               Offset,
               ConsumerMetadata,
               OffsetCommit,
-              OffsetFetch ]
+              OffsetFetch,
+              JoinGroup,
+              SyncGroup,
+              LeaveGroup,
+              Heartbeat,
+              ListGroups,
+              DescribeGroups]
 
   @typedoc """
   The `decode` function in each decoder will return there own response struct

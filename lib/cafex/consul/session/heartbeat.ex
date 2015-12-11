@@ -3,6 +3,7 @@ defmodule Cafex.Consul.Session.Heartbeat do
   use GenServer
 
   defmodule State do
+    @moduledoc false
     defstruct [:timer, :session, :interval]
   end
 

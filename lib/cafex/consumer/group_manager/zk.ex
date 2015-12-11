@@ -1,4 +1,29 @@
 defmodule Cafex.Consumer.GroupManager.ZK do
+  @moduledoc """
+  This depends on ZooKeeper to rebalancing consumers
+
+  ## zookeeper structure
+
+
+  ```
+    /cafex
+     |-- topic
+     |  |-- group_name
+     |  |  |-- leader
+     |  |  |-- consumers
+     |  |  |  |-- balance
+     |  |  |  |  |-- cafex@192.168.0.1       - [0,1,2,3]     # persistent
+     |  |  |  |  |-- cafex@192.168.0.2       - [4,5,6,7]     # persistent
+     |  |  |  |  |-- cafex@192.168.0.3       - [8,9,10,11]   # persistent
+     |  |  |  |-- online
+     |  |  |  |  |-- cafex@192.168.0.1                       # ephemeral
+     |  |  |  |  |-- cafex@192.168.0.2                       # ephemeral
+     |  |  |  |-- offline
+     |  |  |  |  |-- cafex@192.168.0.3                       # persistent
+     |  |  |-- locks
+  ```
+
+  """
   @behaviour :gen_fsm
 
   require Logger
@@ -11,6 +36,7 @@ defmodule Cafex.Consumer.GroupManager.ZK do
   @zk_servers [{"127.0.0.1", 2181}]
 
   defmodule State do
+    @moduledoc false
     defstruct [:manager,
                :topic,
                :group,

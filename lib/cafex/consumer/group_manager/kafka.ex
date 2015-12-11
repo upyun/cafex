@@ -1,4 +1,9 @@
 defmodule Cafex.Consumer.GroupManager.Kafka do
+  @moduledoc """
+  The implementation of Kafka Client-side Assignment Proposal
+
+  See [Kafka Client-side Assignment Proposal](https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Client-side+Assignment+Proposal) to read more.
+  """
   @behaviour :gen_fsm
 
   require Logger
@@ -18,6 +23,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   @timeout 6000
 
   defmodule State do
+    @moduledoc false
     defstruct [:manager,
                :topic,
                :group,
