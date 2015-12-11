@@ -17,7 +17,18 @@ defmodule Cafex.ZK.Util do
   end
 
   @spec create_node(zk, path) :: :ok | {:error, term}
-  def create_node(_zk, "/"), do: :ok
+  def create_node(zk, "/") do
+    # if use chroot, the "/" node may be not exists
+    case :erlzk.exists(zk, "/") do
+      {:ok, _state} -> :ok
+      {:error, :no_node} ->
+        case :erlzk.create(zk, "/") do
+          {:ok, _state} -> :ok
+          {:error, :node_exists} -> :ok
+          error -> error
+        end
+    end
+  end
   def create_node( zk, path) do
     path = String.rstrip(path, ?/)
     case :erlzk.exists(zk, path) do

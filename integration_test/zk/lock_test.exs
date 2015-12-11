@@ -24,15 +24,15 @@ defmodule Cafex.Integration.ZK.LockTest do
     prefix = context[:zk_prefix]
 
     lock_path = Path.join(prefix, "lock")
-    assert {:ok, seq1} = Lock.aquire(pid, lock_path)
+    assert {:ok, seq1} = Lock.acquire(pid, lock_path)
 
-    assert {:error, :locked}  == Lock.aquire(pid, lock_path)
-    assert {:error, :timeout} == Lock.aquire(pid, lock_path, 10)
-    assert {:wait,  seq2}     =  Lock.aquire(pid, lock_path, :infinity)
+    assert {:error, :locked}  == Lock.acquire(pid, lock_path)
+    assert {:error, :timeout} == Lock.acquire(pid, lock_path, 10)
+    assert {:wait,  seq2}     =  Lock.acquire(pid, lock_path, :infinity)
 
     assert :ok == Lock.release(pid, seq1)
     assert_receive {:lock_again, seq2}
-    assert {:ok, seq2} == Lock.reaquire(pid, lock_path, seq2)
+    assert {:ok, seq2} == Lock.reacquire(pid, lock_path, seq2)
   end
 
 end

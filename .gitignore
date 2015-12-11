@@ -1,6 +1,7 @@
 /_build
 /deps
 /doc
+/docker/docker-compose.yml
 erl_crash.dump
 *.ez
 cscope.*

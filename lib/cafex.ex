@@ -9,7 +9,7 @@ defmodule Cafex do
                             {:timeout, non_neg_integer}
 
   def start_topic(name, brokers, opts \\ []) do
-    Cafex.Topic.Supervisor.start_topic(name, brokers, opts)
+    Cafex.Supervisor.start_topic(name, brokers, opts)
   end
 
   @doc """
@@ -19,7 +19,7 @@ defmodule Cafex do
   """
   @spec start_producer(topic_name :: String.t, opts :: Cafex.Producer.options) :: Supervisor.on_start_child
   def start_producer(topic_name, opts \\ []) do
-    Cafex.Producer.Supervisor.start_producer(topic_name, opts)
+    Cafex.Supervisor.start_producer(topic_name, opts)
   end
 
   @doc """
@@ -52,7 +52,7 @@ defmodule Cafex do
   """
   @spec start_consumer(name :: atom, topic_name :: String.t, Cafex.Consumer.Manager.options) :: Supervisor.on_start_child
   def start_consumer(name, topic_name, opts \\ []) do
-    Cafex.Consumer.Supervisor.start_consumer(name, topic_name, opts)
+    Cafex.Supervisor.start_consumer(name, topic_name, opts)
   end
 
   @spec offline_consumer(name :: atom | pid) :: :ok

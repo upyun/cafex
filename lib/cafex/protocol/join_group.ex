@@ -61,7 +61,8 @@ defmodule Cafex.Protocol.JoinGroup do
   defp parse_member(<< member_id_len :: 16-signed,
                         member_id :: size(member_id_len)-binary,
                         metadata_len :: 32-signed,
-                        metadata :: size(metadata_len)-binary>>) do
-    {member_id, metadata}
+                        metadata :: size(metadata_len)-binary,
+                        rest :: binary>>) do
+    {{member_id, metadata}, rest}
   end
 end
