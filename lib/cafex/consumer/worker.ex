@@ -38,7 +38,7 @@ defmodule Cafex.Consumer.Worker do
 
   alias Cafex.Connection
   alias Cafex.Protocol.Fetch
-  alias Cafex.Consumer.Coordinator
+  alias Cafex.Consumer.OffsetManager
 
   # ===================================================================
   # API
@@ -103,7 +103,7 @@ defmodule Cafex.Consumer.Worker do
                           coordinator: coordinator} = state) do
     {:ok, conn} = Connection.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
-    {:ok, {offset, _}} = Coordinator.offset_fetch(coordinator, partition, conn)
+    {:ok, {offset, _}} = OffsetManager.offset_fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
                                         hwm_offset: offset,
                                         handler: handler,
@@ -238,7 +238,7 @@ defmodule Cafex.Consumer.Worker do
                                                      handler: handler,
                                                      handler_data: handler_data} = state) do
     {:ok, data} = handler.consume(%{message | topic: topic, partition: partition}, handler_data)
-    Coordinator.offset_commit(coordinator, partition, offset + 1)
+    OffsetManager.offset_commit(coordinator, partition, offset + 1)
     %{state | handler_data: data}
   end
 end

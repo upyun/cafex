@@ -72,7 +72,7 @@ defmodule Cafex.Protocol.JoinGroup do
                                rest :: binary >>) do
     {subscription, rest} = decode_array(rest, &parse_topic/1)
 
-    user_data = decode_bytes(rest)
+    {user_data, _} = decode_bytes(rest)
 
     {version, subscription, user_data}
   end
