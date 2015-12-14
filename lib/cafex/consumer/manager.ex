@@ -154,7 +154,7 @@ defmodule Cafex.Consumer.Manager do
 
     zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_cfg = [
-      servers: Keyword.get(zk_config, :servers) || []
+      servers: (Keyword.get(zk_config, :servers) || [])
             |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end),
       chroot:  Keyword.get(zk_config, :path),
       timeout: Keyword.get(zk_config, :timeout)
