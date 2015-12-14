@@ -5,7 +5,7 @@ defmodule Cafex.Protocol.Produce.Test do
   alias Cafex.Protocol.Produce
   alias Cafex.Protocol.Produce.Request
 
-  test "create_request creates a valid payload" do
+  test "create_request creates a valid payload with nil value" do
     expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,254,46,107,157,0,0,255,255,255,255,0,0,0,3,104,101,121>>
 
     request = %Request{ required_acks: 1,
@@ -17,7 +17,7 @@ defmodule Cafex.Protocol.Produce.Test do
     assert expected_request == Produce.encode(request)
   end
 
-  test "create_request creates a valid payload" do
+  test "create_request creates a valid payload with empty string value" do
     expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,106,86,37,142,0,0,0,0,0,0,0,0,0,3,104,101,121>>
 
     request = %Request{ required_acks: 1,

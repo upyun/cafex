@@ -1,5 +1,6 @@
 defmodule Cafex.Protocol.SyncGroup do
   use Cafex.Protocol, api_key: 14
+  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :group_id, binary
@@ -38,39 +39,7 @@ defmodule Cafex.Protocol.SyncGroup do
               member_assignment: assignment}
   end
 
-  defp encode_member_assignment({member_id, assignment}) do
+  def encode_member_assignment({member_id, assignment}) do
     [encode_string(member_id), encode_assignment(assignment)]
   end
-
-  defp encode_assignment({version, partition_assignment, user_data}) do
-    data =
-    [<< version :: 16-signed >>,
-     encode_array(partition_assignment, &encode_partition_assignment/1),
-     encode_bytes(user_data)] |> IO.iodata_to_binary
-
-   len = byte_size(data)
-
-   << len :: 32-signed, data :: binary >>
-  end
-
-  defp encode_partition_assignment({topic, partitions}) do
-    [encode_string(topic), encode_array(partitions, &(<< &1 :: 32-signed >>))]
-  end
-
-  defp parse_assignment(<< version :: 16-signed, rest :: binary >>) do
-    {partition_assignment, rest} = decode_array(rest, &parse_topic/1)
-
-    {user_data, _} = decode_bytes(rest)
-
-    {version, partition_assignment, user_data}
-  end
-
-  defp parse_topic(<< len :: 16-signed,
-                      topic :: size(len)-binary,
-                      rest :: binary >>) do
-    {partitions, rest} = decode_array(rest, &parse_partition/1)
-    {{topic, partitions}, rest}
-  end
-
-  defp parse_partition(<< partition :: 32-signed, rest :: binary >>), do: {partition, rest}
 end

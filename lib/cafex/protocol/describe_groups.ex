@@ -1,5 +1,6 @@
 defmodule Cafex.Protocol.DescribeGroups do
   use Cafex.Protocol, api_key: 15
+  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :groups, [group_id]
@@ -43,13 +44,13 @@ defmodule Cafex.Protocol.DescribeGroups do
                       protocol_len :: 16-signed,
                       protocol :: size(protocol_len)-binary,
                       rest :: binary >>) do
-    {members, _} = decode_array(rest, &parse_member/1)
-    %{error: decode_error(error_code),
+    {members, rest} = decode_array(rest, &parse_member/1)
+    {%{error: decode_error(error_code),
       group_id: group_id,
       state: state,
       protocol_type: protocol_type,
       protocol: protocol,
-      members: members}
+      members: members}, rest}
   end
 
   defp parse_member(<< member_id_len :: 16-signed,
@@ -61,12 +62,15 @@ defmodule Cafex.Protocol.DescribeGroups do
                        member_metadata_len :: 32-signed,
                        member_metadata :: size(member_metadata_len)-binary,
                        member_assignment_len :: 32-signed,
-                       member_assignment :: size(member_assignment_len)-binary >>) do
-    %{member_id: member_id,
+                       member_assignment :: size(member_assignment_len)-binary,
+                       rest :: binary>>) do
+    member_metadata = parse_group_protocol_metadata(member_metadata)
+    member_assignment = parse_assignment(member_assignment)
+    {%{member_id: member_id,
       client_id: client_id,
       client_host: client_host,
       member_metadata: member_metadata,
-      member_assignment: member_assignment}
+      member_assignment: member_assignment}, rest}
   end
 
 end

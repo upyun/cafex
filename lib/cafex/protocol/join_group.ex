@@ -1,5 +1,6 @@
 defmodule Cafex.Protocol.JoinGroup do
   use Cafex.Protocol, api_key: 11
+  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :group_id, binary
@@ -57,24 +58,7 @@ defmodule Cafex.Protocol.JoinGroup do
 
   defp encode_group_protocol({name, metadata}) do
     [encode_string(name),
-     encode_metadata(metadata)]
-  end
-
-  defp encode_metadata({version, subscription, user_data}) do
-    data = [<< version :: 16-signed >>,
-               encode_array(subscription, &encode_string/1),
-               encode_bytes(user_data)] |> IO.iodata_to_binary
-   len = byte_size(data)
-   << len :: 32-signed, data :: binary>>
-  end
-
-  defp parse_group_protocol(<< version :: 16-signed,
-                               rest :: binary >>) do
-    {subscription, rest} = decode_array(rest, &parse_topic/1)
-
-    {user_data, _} = decode_bytes(rest)
-
-    {version, subscription, user_data}
+     encode_group_protocol_metadata(metadata)]
   end
 
   defp parse_member(<< member_id_len :: 16-signed,
@@ -82,13 +66,7 @@ defmodule Cafex.Protocol.JoinGroup do
                        metadata_len :: 32-signed,
                        metadata :: size(metadata_len)-binary,
                        rest :: binary>>) do
-    metadata = parse_group_protocol(metadata)
+    metadata = parse_group_protocol_metadata(metadata)
     {{member_id, metadata}, rest}
-  end
-
-  defp parse_topic(<< len :: 16-signed,
-                      topic :: size(len)-binary,
-                      rest :: binary >>) do
-    {topic, rest}
   end
 end
