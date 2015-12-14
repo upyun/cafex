@@ -58,7 +58,7 @@ defmodule Cafex.Consumer.Manager do
   require Logger
 
   alias Cafex.Util
-  alias Cafex.Kafka.ConsumerMetadata
+  alias Cafex.Kafka.GroupCoordinator
   alias Cafex.Consumer.OffsetManager
   alias Cafex.Consumer.Worker
   alias Cafex.Consumer.WorkerPartition
@@ -281,7 +281,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp find_group_coordinator(%{group: group, brokers: brokers} = state) do
-    {:ok, {host, port}} = ConsumerMetadata.request(HashDict.values(brokers), group)
+    {:ok, {host, port}} = GroupCoordinator.request(HashDict.values(brokers), group)
     # {:ok, pid} = Connection.start_link(host, port)
     %{state | group_coordinator: {host, port}}
   end

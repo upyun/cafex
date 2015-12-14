@@ -9,7 +9,7 @@ defmodule Cafex.Protocol.Decoder do
               Produce,
               Fetch,
               Offset,
-              ConsumerMetadata,
+              GroupCoordinator,
               OffsetCommit,
               OffsetFetch,
               JoinGroup,

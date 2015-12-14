@@ -1,8 +1,8 @@
-defmodule Cafex.Protocol.ConsumerMetadata do
+defmodule Cafex.Protocol.GroupCoordinator do
   use Cafex.Protocol, api_key: 10
 
   defrequest do
-    field :consumer_group, binary
+    field :group_id, binary
   end
 
   defresponse do
@@ -12,8 +12,8 @@ defmodule Cafex.Protocol.ConsumerMetadata do
     field :coordinator_port, 0..65535
   end
 
-  def encode(%{consumer_group: consumer_group}) do
-    encode_string(consumer_group)
+  def encode(%{group_id: group_id}) do
+    encode_string(group_id)
   end
 
   @spec decode(binary) :: Response.t
