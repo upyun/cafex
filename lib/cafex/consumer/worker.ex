@@ -164,8 +164,8 @@ defmodule Cafex.Consumer.Worker do
     if Process.alive?(pid), do: Connection.close(pid)
   end
 
-  defp release_lock(%{lock: {false, _}}), do: :ok
-  defp release_lock(%{lock: {true, lock}, lock_cfg: {mod, _}}) do
+  defp release_lock(%{lock: {_, nil}}), do: :ok
+  defp release_lock(%{lock: {_, lock}, lock_cfg: {mod, _}}) do
     mod.release(lock)
   end
 
