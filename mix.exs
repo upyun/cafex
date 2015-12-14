@@ -43,7 +43,7 @@ defmodule Cafex.Mixfile do
     [{:earmark, "~> 0.1.17", only: :dev},
      {:ex_doc,  "~> 0.10.0", only: :dev},
      {:consul, github: "zolazhou/consul-ex"},
-     {:erlzk,   git: "http://gitlab.widget-inc.com/huaban-core/erlzk.git"}]
+     {:erlzk,   "~> 0.6.1"}]
   end
 
   defp test_paths(:integration), do: ["integration_test"]
