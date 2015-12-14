@@ -5,6 +5,11 @@ defmodule Cafex.Kafka.Metadata do
 
   alias Cafex.Protocol.Metadata.Request
 
+  def make_request() do
+    %Request{topics: []}
+  end
+
+  def make_request(nil), do: make_request
   def make_request(topic) do
     %Request{topics: [topic]}
   end
