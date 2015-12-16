@@ -3,6 +3,10 @@ defmodule Mix.Tasks.Cafex.Groups do
   import Mix.Cafex
 
   alias Cafex.Connection
+  alias Cafex.Kafka.Metadata
+  alias Cafex.Protocol.GroupCoordinator
+  alias Cafex.Protocol.DescribeGroups
+  alias Cafex.Protocol.ListGroups
 
   @shortdoc "List/Describe kafka consumer groups"
   @recursive true
@@ -32,7 +36,7 @@ defmodule Mix.Tasks.Cafex.Groups do
     %{servers: brokers} = parse_servers_url(broker)
     ensure_started
 
-    {:ok, %{brokers: [%{host: host, port: port}|_] = brokers}} = Cafex.Kafka.Metadata.request(brokers, nil)
+    {:ok, %{brokers: [%{host: host, port: port}|_] = brokers}} = Metadata.request(brokers, nil)
 
     if length(groups) > 0 do
       Enum.each(groups, fn group ->
@@ -47,11 +51,11 @@ defmodule Mix.Tasks.Cafex.Groups do
 
   defp describe_group(group, host, port) do
     {:ok, conn} = Connection.start(host, port)
-    request = %Cafex.Protocol.GroupCoordinator.Request{group_id: group}
-    {:ok, %{coordinator_host: host, coordinator_port: port}} = Cafex.Connection.request(conn, request)
+    request = %GroupCoordinator.Request{group_id: group}
+    {:ok, %{coordinator_host: host, coordinator_port: port}} = Connection.request(conn, request)
     Connection.close(conn)
     {:ok, conn} = Connection.start(host, port)
-    request = %Cafex.Protocol.DescribeGroups.Request{groups: [group]}
+    request = %DescribeGroups.Request{groups: [group]}
     {:ok, %{groups: [%{error: error,
                       group_id: ^group,
                       state: state,
@@ -86,7 +90,7 @@ defmodule Mix.Tasks.Cafex.Groups do
 
   defp list_groups(%{node_id: id, host: host, port: port}) do
     {:ok, conn} = Connection.start(host, port)
-    request = %Cafex.Protocol.ListGroups.Request{}
+    request = %ListGroups.Request{}
     {:ok, response} = Connection.request(conn, request)
     info_msg "Broker: #{id} [#{host}:#{port}]"
     case response do

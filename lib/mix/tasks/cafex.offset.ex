@@ -1,6 +1,10 @@
-defmodule Mix.Tasks.Cafex.Offsetfetch do
+defmodule Mix.Tasks.Cafex.Offset do
   use Mix.Task
   import Mix.Cafex
+
+  alias Cafex.Protocol.Offset
+  alias Cafex.Protocol.OffsetFetch
+  alias Cafex.Protocol.GroupCoordinator
 
   @shortdoc "Fetch consumer group offsets"
   @recursive true
@@ -38,24 +42,46 @@ defmodule Mix.Tasks.Cafex.Offsetfetch do
     ensure_started
 
     {:ok, %{brokers: brokers, topics: [%{partitions: partitions}]}} = Cafex.Kafka.Metadata.request(brokers, topic)
-    partitions = Enum.map(partitions, fn %{partition_id: id} ->
+    partition_ids = Enum.map(partitions, fn %{partition_id: id} ->
         id
     end)
+    brokers_map = Enum.map(brokers, fn %{node_id: node_id} = broker ->
+      {node_id, broker}
+    end) |> Enum.into(%{})
 
-    request = %Cafex.Protocol.GroupCoordinator.Request{group_id: group}
+    hwm = partitions
+    |> Enum.group_by(fn %{leader: leader} -> leader end)
+    |> Enum.map(fn {k, v} ->
+      partitions = Enum.map(v, fn %{partition_id: partition} ->
+        {partition, :latest, 1}
+      end)
+      request = %Offset.Request{topics: [{topic, partitions}]}
+      %{host: host, port: port} = brokers_map[k]
+      {:ok, conn} = Connection.start(host, port)
+      {:ok, %{offsets: [{^topic, partitions}]}} = Connection.request(conn, request)
+      Connection.close(conn)
+      partitions
+    end)
+    |> List.flatten
+    |> Enum.map(fn %{partition: partition, offsets: [offset]} ->
+      {partition, offset}
+    end)
+    |> Enum.into(%{})
+
+    request = %GroupCoordinator.Request{group_id: group}
     [%{host: host, port: port}|_] = brokers
     {:ok, conn} = Connection.start(host, port)
-    {:ok, %{coordinator_host: host, coordinator_port: port}} = Cafex.Connection.request(conn, request)
+    {:ok, %{coordinator_host: host, coordinator_port: port}} = Connection.request(conn, request)
     Connection.close(conn)
     {:ok, conn} = Connection.start(host, port)
-    request = %Cafex.Protocol.OffsetFetch.Request{api_version: 1, consumer_group: group, topics: [{topic, partitions}]}
+    request = %OffsetFetch.Request{api_version: 1, consumer_group: group, topics: [{topic, partition_ids}]}
     {:ok, %{topics: [{^topic, partitions}]}} = Connection.request(conn, request)
 
     success_msg "Topic: #{topic}\n"
     partitions
     |> Enum.sort
     |> Enum.each(fn {id, offset, meta, error} ->
-      info_msg "partition: #{id}\t offset: #{offset}\t meta: #{inspect meta}\t error: #{inspect error}"
+      info_msg "partition: #{id}\t offset: #{offset}\thwmOffset: #{hwm[id]}\t meta: #{inspect meta}\t error: #{inspect error}"
     end)
 
     :ok

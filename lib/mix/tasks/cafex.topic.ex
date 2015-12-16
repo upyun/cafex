@@ -2,6 +2,8 @@ defmodule Mix.Tasks.Cafex.Topic do
   use Mix.Task
   import Mix.Cafex
 
+  alias Cafex.Kafka.Metadata
+
   @shortdoc "Print topic metadata from Kafka."
   @recursive true
   @moduledoc """
@@ -45,7 +47,7 @@ defmodule Mix.Tasks.Cafex.Topic do
     %{servers: brokers} = parse_servers_url(broker)
     ensure_started
 
-    {:ok, metadata} = Cafex.Kafka.Metadata.request(brokers, args)
+    {:ok, metadata} = Metadata.request(brokers, args)
 
     success_msg "Brokers:"
     Enum.map(metadata.brokers, fn %{node_id: id, host: host, port: port} ->
@@ -75,12 +77,12 @@ defmodule Mix.Tasks.Cafex.Topic do
 
     topics
     |> Enum.sort
-    |> Enum.map(fn %{error: err, name: name, partitions: partitions} ->
+    |> Enum.map(fn %{error: _error, name: name, partitions: _partitions} ->
       info_msg "#{name}"
     end)
   end
 
-  defp describe_topic(%{error: error, name: name, partitions: partitions}) do
+  defp describe_topic(%{error: _error, name: name, partitions: partitions}) do
     info_msg "Topic: #{name}"
 
     partitions
