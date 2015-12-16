@@ -12,7 +12,7 @@ defmodule Cafex.Protocol.Codec do
               Produce,
               Fetch,
               Offset,
-              ConsumerMetadata,
+              GroupCoordinator,
               OffsetCommit,
               OffsetFetch,
               JoinGroup,
@@ -106,7 +106,7 @@ defmodule Cafex.Protocol.Codec do
       <<255, 255, 255, 255>>
 
       iex> encode_bytes("")
-      <<255, 255, 255, 255>>
+      <<0, 0, 0, 0>>
 
       iex> encode_bytes("hey")
       <<0, 0, 0, 3, 104, 101, 121>>
@@ -115,7 +115,7 @@ defmodule Cafex.Protocol.Codec do
   def encode_bytes(nil), do: << -1 :: 32-signed >>
   def encode_bytes(data) when is_binary(data) do
     case byte_size(data) do
-      0 -> << -1 :: 32-signed >>
+      0 -> << 0 :: 32-signed >>
       size -> << size :: 32-signed, data :: binary >>
     end
   end
@@ -136,7 +136,7 @@ defmodule Cafex.Protocol.Codec do
       <<255, 255>>
 
       iex> encode_string("")
-      <<255, 255>>
+      <<0, 0>>
 
       iex> encode_string("hey")
       <<0, 3, 104, 101, 121>>
@@ -145,7 +145,7 @@ defmodule Cafex.Protocol.Codec do
   def encode_string(nil), do: << -1 :: 16-signed >>
   def encode_string(data) when is_binary(data) do
     case byte_size(data) do
-      0 -> << -1 :: 16-signed >>
+      0 -> << 0 :: 16-signed >>
       size -> << size :: 16-signed, data :: binary >>
     end
   end
@@ -193,7 +193,7 @@ defmodule Cafex.Protocol.Codec do
       <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: ""})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 106, 86, 37, 142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key"})
       <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>

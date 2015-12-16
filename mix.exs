@@ -26,7 +26,7 @@ defmodule Cafex.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger, :erlzk],
+    [applications: [:logger, :erlzk, :consul],
      mod: {Cafex.Application, []}]
   end
 
@@ -42,7 +42,8 @@ defmodule Cafex.Mixfile do
   defp deps do
     [{:earmark, "~> 0.1.17", only: :dev},
      {:ex_doc,  "~> 0.10.0", only: :dev},
-     {:erlzk,   "~> 0.6.0"}]
+     {:consul, github: "zolazhou/consul-ex"},
+     {:erlzk,   "~> 0.6.1"}]
   end
 
   defp test_paths(:integration), do: ["integration_test"]

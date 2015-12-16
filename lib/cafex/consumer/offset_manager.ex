@@ -1,4 +1,4 @@
-defmodule Cafex.Consumer.Coordinator do
+defmodule Cafex.Consumer.OffsetManager do
   use GenServer
 
   require Logger
@@ -10,8 +10,10 @@ defmodule Cafex.Consumer.Coordinator do
   defmodule State do
     @moduledoc false
     defstruct        conn: nil,  # coordinator connection
-                     host: nil,
+               group_coordinator: nil,
                partitions: nil,
+               generation_id: nil,
+               consumer_id: nil,
                group: nil,
                topic: nil,
              to_be_commit: %{},
@@ -32,12 +34,16 @@ defmodule Cafex.Consumer.Coordinator do
   # API
   # ===================================================================
 
-  def start_link({host, port}, partitions, group, topic, opts \\ []) do
-    GenServer.start_link __MODULE__, [{host, port}, partitions, group, topic, opts]
+  def start_link(group_coordinator, partitions, group, topic, opts \\ []) do
+    GenServer.start_link __MODULE__, [group_coordinator, partitions, group, topic, opts]
   end
 
   def stop(pid) do
     GenServer.call pid, :stop
+  end
+
+  def update_generation_id(pid, consumer_id, generation_id) do
+    GenServer.call pid, {:update_generation_id, consumer_id, generation_id}
   end
 
   def offset_commit(pid, partition, offset, metadata \\ "") do
@@ -52,20 +58,25 @@ defmodule Cafex.Consumer.Coordinator do
   # GenServer callbacks
   # ===================================================================
 
-  def init([{host, port}, partitions, group, topic, opts]) do
-    state = %State{     host: {host, port},
-                       topic: topic,
-                       group: group,
-                  partitions: partitions,
-                 auto_commit: Keyword.get(opts, :auto_commit, false),
-                    interval: Keyword.get(opts, :interval) || @interval,
-                 max_buffers: Keyword.get(opts, :max_buffers) || @max_buffers,
-              offset_storage: Keyword.get(opts, :offset_storage) || @offset_storage} |> start_conn
+  def init([group_coordinator, partitions, group, topic, opts]) do
+    state = %State{group_coordinator: group_coordinator,
+                   topic: topic,
+                   group: group,
+                   partitions: partitions,
+                   auto_commit: Keyword.get(opts, :auto_commit, false),
+                   interval: Keyword.get(opts, :interval) || @interval,
+                   max_buffers: Keyword.get(opts, :max_buffers) || @max_buffers,
+                   offset_storage: Keyword.get(opts, :offset_storage) || @offset_storage}
+                 |> start_conn
     {:ok, state}
   end
 
   def handle_call(:stop, _from, state) do
-    {:stop, :normal, state}
+    {:stop, :normal, :ok, state}
+  end
+
+  def handle_call({:update_generation_id, consumer_id, generation_id}, _from, state) do
+    {:reply, :ok, %{state | consumer_id: consumer_id, generation_id: generation_id}}
   end
 
   def handle_call({:offset_commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
@@ -95,29 +106,41 @@ defmodule Cafex.Consumer.Coordinator do
     end
   end
 
-  def handle_info({:timeout, _timer, :do_commit}, %{count: 0} = state) do
-    {:noreply, state}
-  end
   def handle_info({:timeout, timer, :do_commit}, %{group: group,
                                                    topic: topic,
                                                    offset_storage: storage,
                                                    to_be_commit: to_be_commit,
+                                                   consumer_id: consumer_id,
+                                                   generation_id: generation_id,
                                                    timer: timer,
                                                    conn: conn} = state) do
     partitions = Enum.map(to_be_commit, fn {partition, {offset, metadata}} ->
       {partition, offset, metadata}
     end)
-    offset_commit(storage, conn, group, topic, partitions)
+    offset_commit(storage, conn, group, topic, partitions, consumer_id, generation_id)
     {:noreply, %{state | to_be_commit: %{}, timer: nil, count: 0}}
+  end
+
+  def terminate(_reason, state) do
+    close_conn(state)
+    :ok
   end
 
   # ===================================================================
   # Internal functions
   # ===================================================================
 
-  defp start_conn(%{host: {host, port}} = state) do
+  defp start_conn(%{group_coordinator: {host, port}} = state) do
     {:ok, pid} = Connection.start_link(host, port)
     %{state | conn: pid}
+  end
+
+  defp close_conn(%{conn: nil} = state), do: state
+  defp close_conn(%{conn: pid} = state) do
+    if Process.alive?(pid) do
+      Connection.close(pid)
+    end
+    %{state | conn: nil}
   end
 
   defp offset_fetch(storage, conn, group, topic, partition) do
@@ -140,10 +163,12 @@ defmodule Cafex.Consumer.Coordinator do
 
   defp schedule_offset_commit(from, partition, offset, metadata, %{auto_commit: false,
                                                                    offset_storage: storage,
+                                                                   generation_id: generation_id,
+                                                                   consumer_id: consumer_id,
                                                                    conn: conn,
                                                                    group: group,
                                                                    topic: topic} = state) do
-    reply = case offset_commit(storage, conn, group, topic, [{partition, offset, metadata}]) do
+    reply = case offset_commit(storage, conn, group, topic, [{partition, offset, metadata}], consumer_id, generation_id) do
       {:ok, [{^partition, :no_error}]} -> :ok
       {:ok, [{^partition, error}]} -> {:error, error}
       {:error, _reason} = error -> error
@@ -174,9 +199,11 @@ defmodule Cafex.Consumer.Coordinator do
     state
   end
 
-  defp offset_commit(storage, conn, group, topic, partitions) do
+  defp offset_commit(storage, conn, group, topic, partitions, consumer_id, generation_id) do
     Logger.debug "Do offset commit: topic: #{inspect topic}, group: #{inspect group} partition offsets: #{inspect partitions},"
     request = %OffsetCommit.Request{consumer_group: group,
+                                    consumer_id: consumer_id,
+                                    consumer_group_generation_id: generation_id,
                                     topics: [{topic, partitions}]}
     request = case storage do
       :zookeeper -> %{request | api_version: 0}

@@ -1,5 +1,6 @@
 defmodule Cafex.Consumer.WorkerPartition do
   @moduledoc """
+  The partitions and their corresponding worker pids
 
   ```
   {

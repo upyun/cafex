@@ -25,7 +25,9 @@ use Mix.Config
 
 config :cafex, :myconsumer,
   client_id: "cafex",
-  offset_storage: :kafka,
+  offset_storage: :kafka, # :kafka or :zookeeper
+  group_manager: :kafka,  # :kafka or :zookeeper
+  lock: :consul,          # :consul or :zookeeper
   auto_commit: true,
   auto_commit_interval: 500, # ms
   auto_commit_max_buffers: 50,
@@ -34,9 +36,9 @@ config :cafex, :myconsumer,
     servers: [{"192.168.99.100", 2181}],
     path: "/elena/cafex"
   ],
-  wait_time: 100,
-  min_bytes: 32 * 1024,
-  max_bytes: 1024 * 1024,
+  fetch_wait_time: 100,
+  fetch_min_bytes: 32 * 1024,
+  fetch_max_bytes: 1024 * 1024,
   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
 
 config :cafex, :myconsumer2,
@@ -46,6 +48,10 @@ config :cafex, :myconsumer2,
     path: "/elena/cafex"
   ],
   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
+
+config :consul,
+  host: "localhost",
+  port: 8500
 
 config :logger,
   level: :debug

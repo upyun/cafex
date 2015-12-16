@@ -12,14 +12,14 @@ defmodule Cafex.ZK.Lock do
 
   alias Cafex.ZK.Util
 
-  @spec aquire(zk, path, timeout) :: {:ok, lock} | {:wait, lock} | {:error, term}
-  def aquire(zk, path, timeout \\ 0) do
+  @spec acquire(zk, path, timeout) :: {:ok, lock} | {:wait, lock} | {:error, term}
+  def acquire(zk, path, timeout \\ 0) do
     {:ok, seq} = create_node(zk, path)
-    reaquire(zk, path, seq, timeout)
+    reacquire(zk, path, seq, timeout)
   end
 
-  @spec reaquire(zk, path, seq, timeout) :: {:ok, lock} | {:wait, lock} | {:error, term}
-  def reaquire(zk, path, seq, timeout \\ 0) do
+  @spec reacquire(zk, path, seq, timeout) :: {:ok, lock} | {:wait, lock} | {:error, term}
+  def reacquire(zk, path, seq, timeout \\ 0) do
     case check_sequence(zk, path, seq, timeout) do
       {:ok, lock} ->
         {:ok, lock}
@@ -66,7 +66,7 @@ defmodule Cafex.ZK.Lock do
         # find next lowest sequence
         case Enum.find_index(children, fn x -> x == seq end) do
           nil ->
-            aquire(zk, path) # should not happen
+            acquire(zk, path) # should not happen
           idx ->
             check_exists(zk, path, seq, Enum.at(children, idx - 1), timeout)
         end

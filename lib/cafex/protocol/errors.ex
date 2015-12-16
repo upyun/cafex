@@ -19,9 +19,24 @@ defmodule Cafex.Protocol.Errors do
     10 => :message_size_too_large,
     11 => :stale_controller_epoch,
     12 => :offset_metadata_too_large,
-    14 => :offset_loads_in_progress,
-    15 => :consumer_coordinator_not_available,
-    16 => :not_coordinator_for_consumer
+    14 => :group_load_in_progress,
+    15 => :group_coordinator_not_available,
+    16 => :not_coordinator_for_group,
+    17 => :invalid_topic,
+    18 => :record_list_too_large,
+    19 => :not_enough_replicas,
+    20 => :not_enough_replicas_after_append,
+    21 => :invalid_required_acks,
+    22 => :illegal_generation,
+    23 => :inconsistent_group_protocol,
+    24 => :invalid_group_id,
+    25 => :unknown_member_id,
+    26 => :invalid_session_timeout,
+    27 => :rebalance_in_progress,
+    28 => :invalid_commit_offset_size,
+    29 => :topic_authorization_failed,
+    30 => :group_authorization_failed,
+    31 => :cluster_authorization_failed
   }
 
   # Generate

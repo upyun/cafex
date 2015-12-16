@@ -74,7 +74,7 @@ defmodule Cafex.Producer.Worker do
     maybe_produce(message, from, state)
   end
   def handle_call(:stop, _from, state) do
-    {:stop, :normal, state}
+    {:stop, :normal, :ok, state}
   end
 
   def handle_cast({:produce, message}, state) do

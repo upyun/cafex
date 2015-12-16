@@ -25,10 +25,9 @@ defmodule Cafex.Consumer.Worker do
               wait_time: nil,
               min_bytes: nil,
               max_bytes: nil,
-              zk_pid: nil,
-              zk_path: nil,
               conn: nil, # partition leader connection
               lock: {false, nil},
+              lock_cfg: nil,
               buffer: [],
               hwm_offset: 0,
               batch_size: 50,
@@ -37,17 +36,16 @@ defmodule Cafex.Consumer.Worker do
               handler_data: nil
   end
 
-  alias Cafex.ZK.Lock
   alias Cafex.Connection
   alias Cafex.Protocol.Fetch
-  alias Cafex.Consumer.Coordinator
+  alias Cafex.Consumer.OffsetManager
 
   # ===================================================================
   # API
   # ===================================================================
 
-  def start_link(coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts \\ []) do
-    :gen_fsm.start_link __MODULE__, [coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts], []
+  def start_link(coordinator, handler, topic, group, partition, broker, opts \\ []) do
+    :gen_fsm.start_link __MODULE__, [coordinator, handler, topic, group, partition, broker, opts], []
   end
 
   def stop(pid) do
@@ -59,7 +57,7 @@ defmodule Cafex.Consumer.Worker do
   # ===================================================================
 
   @doc false
-  def init([coordinator, handler, topic, group, partition, broker, zk_pid, zk_path, opts]) do
+  def init([coordinator, handler, topic, group, partition, broker, opts]) do
     opts = opts || []
     state = %State{topic: topic,
                    group: group,
@@ -68,29 +66,25 @@ defmodule Cafex.Consumer.Worker do
                    broker: broker,
                    coordinator: coordinator,
                    handler: handler,
-                   zk_pid: zk_pid,
-                   zk_path: zk_path,
+                   lock_cfg:  Keyword.get(opts, :lock_cfg),
                    wait_time: Keyword.get(opts, :wait_time) || @wait_time,
                    min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
                    max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
-    {:ok, :aquire_lock, state, 0}
+    {:ok, :acquire_lock, state, 0}
   end
 
   @lock_timeout 60000 * 5
 
   @doc false
-  def aquire_lock(:timeout, %{partition: partition,
-                              zk_pid: pid,
-                              zk_path: zk_path,
-                              lock: lock} = state) do
-    path = Path.join [zk_path, "locks", Integer.to_string(partition)]
-    case lock do
-      {false, nil}  -> Lock.aquire(pid, path, :infinity)
-      {false, lock} -> Lock.reaquire(pid, path, lock, :infinity)
-    end
+  def acquire_lock(:timeout, %{partition: partition,
+                              lock_cfg: {lock_mod, args},
+                              group: group,
+                              topic: topic} = state) do
+    path = Path.join [group, topic, "partitions", Integer.to_string(partition)]
+    lock_mod.acquire(path, args)
     |> case do
-      {:wait, _} ->
-        {:next_state, :waiting_lock, state, @lock_timeout}
+      {:wait, pid} ->
+        {:next_state, :waiting_lock, %{state | lock: {false, pid}}, @lock_timeout}
       {:ok, lock} ->
         {:next_state, :prepare, %{state | lock: {true, lock}}, 0}
     end
@@ -99,9 +93,6 @@ defmodule Cafex.Consumer.Worker do
   @doc false
   def waiting_lock(:timeout, state) do
     {:stop, :lock_timeout, state}
-  end
-  def waiting_lock({:lock_again, lock}, state) do
-    {:next_state, :aquire_lock, %{state | lock: {false, lock}}, 0}
   end
 
   @doc false
@@ -112,7 +103,7 @@ defmodule Cafex.Consumer.Worker do
                           coordinator: coordinator} = state) do
     {:ok, conn} = Connection.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
-    {:ok, {offset, _}} = Coordinator.offset_fetch(coordinator, partition, conn)
+    {:ok, {offset, _}} = OffsetManager.offset_fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
                                         hwm_offset: offset,
                                         handler: handler,
@@ -146,9 +137,8 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
-  def handle_info({:lock_again, lock}, state_name, state_data) do
-    :gen_fsm.send_event self, {:lock_again, lock}
-    {:next_state, state_name, state_data}
+  def handle_info({:lock, :ok}, :waiting_lock, %{lock: {false, lock}} = state_data) do
+    {:next_state, :prepare, %{state_data | lock: {true, lock}}, 0}
   end
 
   @doc false
@@ -174,9 +164,9 @@ defmodule Cafex.Consumer.Worker do
     if Process.alive?(pid), do: Connection.close(pid)
   end
 
-  defp release_lock(%{lock: {false, _}}), do: :ok
-  defp release_lock(%{lock: {true, lock}, zk_pid: zk}) do
-    if Process.alive?(zk), do: Lock.release(zk, lock)
+  defp release_lock(%{lock: {_, nil}}), do: :ok
+  defp release_lock(%{lock: {_, lock}, lock_cfg: {mod, _}}) do
+    mod.release(lock)
   end
 
   defp fetch_messages(%{topic: topic,
@@ -248,7 +238,7 @@ defmodule Cafex.Consumer.Worker do
                                                      handler: handler,
                                                      handler_data: handler_data} = state) do
     {:ok, data} = handler.consume(%{message | topic: topic, partition: partition}, handler_data)
-    Coordinator.offset_commit(coordinator, partition, offset + 1)
+    OffsetManager.offset_commit(coordinator, partition, offset + 1)
     %{state | handler_data: data}
   end
 end

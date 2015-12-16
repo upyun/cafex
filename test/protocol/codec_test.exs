@@ -1,4 +1,4 @@
-defmodule Cafex.Protocol.CodecTest do
+defmodule Cafex.Protocol.Codec.Test do
   use ExUnit.Case, async: true
 
   import Cafex.Protocol.Codec
