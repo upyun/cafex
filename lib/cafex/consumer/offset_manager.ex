@@ -12,9 +12,9 @@ defmodule Cafex.Consumer.OffsetManager do
     defstruct  conn: nil,  # coordinator connection
                group_coordinator: nil,
                partitions: nil,
-               generation_id: nil,
+               consumer_group_generation_id: nil,
                consumer_id: nil,
-               group: nil,
+               consumer_group: nil,
                topic: nil,
                to_be_commit: %{},
                interval: nil,
@@ -60,7 +60,7 @@ defmodule Cafex.Consumer.OffsetManager do
   def init([group_coordinator, partitions, group, topic, opts]) do
     state = %State{group_coordinator: group_coordinator,
                    topic: topic,
-                   group: group,
+                   consumer_group: group,
                    partitions: partitions,
                    auto_commit: Keyword.get(opts, :auto_commit, false),
                    interval: Keyword.get(opts, :interval) || @interval,
@@ -75,7 +75,7 @@ defmodule Cafex.Consumer.OffsetManager do
   end
 
   def handle_call({:update_generation_id, consumer_id, generation_id}, _from, state) do
-    {:reply, :ok, %{state | consumer_id: consumer_id, generation_id: generation_id}}
+    {:reply, :ok, %{state | consumer_id: consumer_id, consumer_group_generation_id: generation_id}}
   end
 
   def handle_call({:offset_commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
@@ -138,7 +138,7 @@ defmodule Cafex.Consumer.OffsetManager do
   end
 
   defp do_offset_fetch(partition, %{conn: conn,
-                                    group: group,
+                                    consumer_group: group,
                                     topic: topic,
                                     storage: storage}) do
     request = %OffsetFetch.Request{consumer_group: group,
@@ -186,17 +186,13 @@ defmodule Cafex.Consumer.OffsetManager do
     state
   end
 
-  defp do_offset_commit(partitions, %{conn: conn,
-                                      group: group,
-                                      topic: topic,
-                                      storage: storage,
-                                      consumer_id: consumer_id,
-                                      generation_id: generation_id}) do
-    Logger.debug "Do offset commit: topic: #{inspect topic}, group: #{inspect group} partition offsets: #{inspect partitions},"
-    request = %OffsetCommit.Request{consumer_group: group,
-                                    consumer_id: consumer_id,
-                                    consumer_group_generation_id: generation_id,
-                                    topics: [{topic, partitions}]}
+  defp do_offset_commit(partitions, %{conn: conn, topic: topic, storage: storage} = state) do
+    Logger.debug "Do offset commit: topic: #{inspect topic}, group: #{inspect state.consumer_group} partition offsets: #{inspect partitions},"
+    request = Map.take(state, [:consumer_group,
+                               :consumer_id,
+                               :consumer_group_generation_id])
+            |> Map.put(:topics, [{topic, partitions}])
+            |> (&(struct(OffsetCommit.Request, &1))).()
     request = case storage do
       :zookeeper -> %{request | api_version: 0}
       :kafka     -> %{request | api_version: 1}

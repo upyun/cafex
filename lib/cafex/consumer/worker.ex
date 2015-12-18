@@ -3,14 +3,14 @@ defmodule Cafex.Consumer.Worker do
 
   require Logger
 
-  @wait_time 100
+  @max_wait_time 100
   @min_bytes 32 * 1024
   @max_bytes 1024 * 1024
   @client_id "cafex"
 
   @typedoc "Options used by the `start_link/9` functions"
   @type options :: [option]
-  @type option :: {:wait_time, non_neg_integer} |
+  @type option :: {:max_wait_time, non_neg_integer} |
                   {:min_bytes, non_neg_integer} |
                   {:max_bytes, non_neg_integer}
   @type handler :: {module, args :: [Keyword.t]}
@@ -22,7 +22,7 @@ defmodule Cafex.Consumer.Worker do
               client_id: nil,
               partition: nil,
               broker: nil,
-              wait_time: nil,
+              max_wait_time: nil,
               min_bytes: nil,
               max_bytes: nil,
               conn: nil, # partition leader connection
@@ -67,7 +67,7 @@ defmodule Cafex.Consumer.Worker do
                    coordinator: coordinator,
                    handler: handler,
                    lock_cfg:  Keyword.get(opts, :lock_cfg),
-                   wait_time: Keyword.get(opts, :wait_time) || @wait_time,
+                   max_wait_time: Keyword.get(opts, :max_wait_time) || @max_wait_time,
                    min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
                    max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
     {:ok, :acquire_lock, state, 0}
@@ -172,14 +172,14 @@ defmodule Cafex.Consumer.Worker do
   defp fetch_messages(%{topic: topic,
                         partition: partition,
                         hwm_offset: offset,
-                        wait_time: wait_time,
-                        min_bytes: min_bytes,
                         max_bytes: max_bytes,
                         conn: conn} = state) do
     # Logger.debug fn -> "Consumer[#{group}:#{topic}:#{partition}] fetching messages: offset = #{offset}" end
-    request = %Fetch.Request{max_wait_time: wait_time,
-                            min_bytes: min_bytes,
-                            topics: [{topic, [{partition, offset, max_bytes}]}]}
+    request =
+    Map.take(state, [:max_wait_time, :min_bytes])
+    |> Map.put(:topics, [{topic, [{partition, offset, max_bytes}]}])
+    |> (&(struct(Fetch.Request, &1))).()
+
     Connection.async_request(conn, request, {:fsm, self})
     state
   end

@@ -194,7 +194,7 @@ defmodule Cafex.Consumer.Manager do
                     handler: handler,
                     lock: lock,
                     worker_cfg: [
-                      wait_time: fetch_wait_time,
+                      max_wait_time: fetch_wait_time,
                       mix_bytes: fetch_min_bytes,
                       max_bytes: fetch_max_bytes,
                       lock_cfg: lock_cfg
@@ -310,10 +310,11 @@ defmodule Cafex.Consumer.Manager do
                              group: group,
                              topic: topic,
                              partitions: partitions,
-                             offset_manager: offset_manager,
-                             group_coordinator: group_coordinator,
                              group_manager_cfg: cfg} = state) do
-    opts = Keyword.merge(cfg, [group_coordinator: group_coordinator, offset_manager: offset_manager])
+    opts = Map.take(state, [:offset_manager, :group_coordinator])
+        |> Map.to_list
+        |> Keyword.merge(cfg)
+
     {:ok, pid} = manager.start_link(self, topic, group, partitions, opts)
     %{state | group_manager: {manager, pid}}
   end

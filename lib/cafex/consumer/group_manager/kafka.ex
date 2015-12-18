@@ -26,7 +26,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
     @moduledoc false
     defstruct [:manager,
                :topic,
-               :group,
+               :group_id,
                :partitions,
                :conn,
                :coordinator,
@@ -36,7 +36,7 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
                :generation_id,
                :offset_manager,
                :members,
-               :timeout,
+               :session_timeout,
                :heartbeat]
   end
 
@@ -66,10 +66,10 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
                    coordinator: coordinator,
                    offset_manager: offset_manager,
                    topic: topic,
-                   group: group,
+                   group_id: group,
                    leader?: false,
                    member_id: "",
-                   timeout: timeout,
+                   session_timeout: timeout,
                    partitions: partitions}
                  |> start_conn
     {:ok, :election, state, 0}
@@ -149,31 +149,33 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
     state
   end
 
-  defp leave(%{group: group, member_id: member_id} = state) do
+  defp leave(%{group_id: group, member_id: member_id} = state) do
     Logger.debug "Leave consumer group: #{inspect group}, member_id: #{inspect member_id}"
     state |> stop_heartbeat |> do_leave
   end
 
-  defp do_leave(%{conn: conn, group: group, member_id: member_id} = state) do
-    request = %LeaveGroup.Request{group_id: group, member_id: member_id}
+  defp do_leave(%{conn: conn} = state) do
+    request =
+    Map.take(state, [:group_id, :member_id])
+    |> (&(struct(LeaveGroup.Request, &1))).()
+
     Connection.request(conn, request)
     state
   end
 
   defp do_election(%{conn: conn,
-                     group: group,
                      topic: topic,
-                     member_id: member_id,
                      assignment: assignment,
-                     timeout: timeout,
                      offset_manager: offset_manager} = state) do
     protocol_metadata = {@protocol_version, [topic], encode_partitions(assignment)}
     group_protocols = [{@protocol_name, protocol_metadata}]
-    request = %JoinGroup.Request{group_id: group,
-                                 session_timeout: timeout,
-                                 member_id: member_id,
-                                 protocol_type: @protocol_type,
-                                 group_protocols: group_protocols}
+
+    request =
+    Map.take(state, [:group_id, :member_id, :session_timeout])
+    |> Map.put(:protocol_type, @protocol_type)
+    |> Map.put(:group_protocols, group_protocols)
+    |> (&(struct(JoinGroup.Request, &1))).()
+
     case Connection.request(conn, request) do
       {:ok, %{error: :no_error,
               generation_id: generation_id,
@@ -190,15 +192,12 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
     end
   end
 
-  defp do_sync_group(group_assignment, %{conn: conn,
-                                         group: group,
-                                         topic: topic,
-                                         member_id: member_id,
-                                         generation_id: generation_id}) do
-    request = %SyncGroup.Request{group_id: group,
-                                 member_id: member_id,
-                                 generation_id: generation_id,
-                                 group_assignment: group_assignment}
+  defp do_sync_group(group_assignment, %{conn: conn, topic: topic} = state) do
+    request =
+    Map.take(state, [:group_id, :member_id, :generation_id])
+    |> Map.put(:group_assignment, group_assignment)
+    |> (&(struct(SyncGroup.Request, &1))).()
+
     case Cafex.Connection.request(conn, request) do
       {:ok, %{error: :no_error, member_assignment: {_version, [{^topic, assignment}], _user_data}}} ->
         {:ok, assignment}
@@ -212,14 +211,11 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
     end
   end
 
-  defp start_heartbeat(%{conn: conn,
-                         group: group,
-                         generation_id: generation_id,
-                         member_id: member_id,
-                         timeout: timeout} = state) do
-    request = %HeartbeatRequest{group_id: group,
-                                 generation_id: generation_id,
-                                 member_id: member_id}
+  defp start_heartbeat(%{conn: conn, session_timeout: timeout} = state) do
+    request =
+    Map.take(state, [:group_id, :member_id, :generation_id])
+    |> (&(struct(HeartbeatRequest, &1))).()
+
     {:ok, pid} = Heartbeat.start_link(self, conn, request, div(timeout, 3) * 2)
     %{state | heartbeat: pid}
   end
