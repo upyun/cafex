@@ -19,7 +19,8 @@ defmodule Cafex.Protocol.ListGroups do
   defp parse_group(<< group_id_len:: 16-signed,
                       group_id :: size(group_id_len)-binary,
                       protocol_type_len :: 16-signed,
-                      protocol_type :: size(protocol_type_len)-binary>>) do
-    {group_id, protocol_type}
+                      protocol_type :: size(protocol_type_len)-binary,
+                      rest :: binary>>) do
+    {{group_id, protocol_type}, rest}
   end
 end
