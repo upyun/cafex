@@ -19,8 +19,8 @@ defmodule Cafex.Protocol.DescribeGroups do
     @type member :: %{member_id: binary,
                       client_id: binary,
                       client_host: binary,
-                      member_metadata: binary,
-                      member_assignment: binary}
+                      member_metadata: Cafex.Protocol.JoinGroup.Request.protocol_metadata,
+                      member_assignment: Cafex.Protocol.SyncGroup.Request.member_assignment}
   end
 
   def encode(%{groups: groups}) do
