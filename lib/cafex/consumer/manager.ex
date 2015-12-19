@@ -195,7 +195,7 @@ defmodule Cafex.Consumer.Manager do
                     lock: lock,
                     worker_cfg: [
                       max_wait_time: fetch_wait_time,
-                      mix_bytes: fetch_min_bytes,
+                      min_bytes: fetch_min_bytes,
                       max_bytes: fetch_max_bytes,
                       lock_cfg: lock_cfg
                     ],
