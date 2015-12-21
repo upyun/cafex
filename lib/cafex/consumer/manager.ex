@@ -78,6 +78,7 @@ defmodule Cafex.Consumer.Manager do
                             {:path, String.t} |
                             {:timeout, non_neg_integer}
   @type option :: {:client_id, client_id} |
+                  {:topic, String.t} |
                   {:handler, Cafex.Consumer.Worker.handler} |
                   {:brokers, [Cafex.broker]} |
                   {:fetch_wait_time, integer} |
@@ -131,19 +132,20 @@ defmodule Cafex.Consumer.Manager do
 
   Read above.
   """
-  @spec start_link(name :: atom, topic :: String.t, options) :: GenServer.on_start
-  def start_link(name, topic, opts \\ []) do
-    GenServer.start_link __MODULE__, [name, topic, opts], name: name
+  @spec start_link(name :: atom, options) :: GenServer.on_start
+  def start_link(name, opts \\ []) do
+    GenServer.start_link __MODULE__, [name, opts], name: name
   end
 
   # ===================================================================
   #  GenServer callbacks
   # ===================================================================
 
-  def init([name, topic, opts]) do
+  def init([name, opts]) do
     Process.flag(:trap_exit, true)
 
     cfg        = Application.get_env(:cafex, name, [])
+    topic      = Util.get_config(opts, cfg, :topic)
     client_id  = Util.get_config(opts, cfg, :client_id, @default_client_id)
     handler    = Util.get_config(opts, cfg, :handler)
     brokers    = Util.get_config(opts, cfg, :brokers)
@@ -282,7 +284,6 @@ defmodule Cafex.Consumer.Manager do
 
   defp find_group_coordinator(%{group: group, brokers: brokers} = state) do
     {:ok, {host, port}} = GroupCoordinator.request(HashDict.values(brokers), group)
-    # {:ok, pid} = Connection.start_link(host, port)
     %{state | group_coordinator: {host, port}}
   end
 

@@ -44,16 +44,8 @@ defmodule Cafex do
 
   Read `Cafex.Consumer.Manager` for more details.
   """
-  @spec start_consumer(name :: atom, topic_name :: String.t, Cafex.Consumer.Manager.options) :: Supervisor.on_start_child
-  def start_consumer(name, topic_name, opts \\ []) do
-    Cafex.Supervisor.start_consumer(name, topic_name, opts)
-  end
-
-  @spec offline_consumer(name :: atom | pid) :: :ok
-  def offline_consumer(name) when is_atom(name) do
-    name |> Process.whereis |> offline_consumer
-  end
-  def offline_consumer(pid) when is_pid(pid) do
-    Cafex.Consumer.Manager.offline pid
+  @spec start_consumer(name :: atom, Cafex.Consumer.Manager.options) :: Supervisor.on_start_child
+  def start_consumer(name, opts \\ []) do
+    Cafex.Supervisor.start_consumer(name, opts)
   end
 end

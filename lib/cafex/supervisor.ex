@@ -12,14 +12,9 @@ defmodule Cafex.Supervisor do
     Cafex.Producer.Supervisor.start_producer(topic, opts)
   end
 
-  def start_consumer(name, topic, opts \\ []) do
+  def start_consumer(name, opts \\ []) do
     :ok = ensure_started(Cafex.Consumer.Supervisor, [])
-    Cafex.Consumer.Supervisor.start_consumer(name, topic, opts)
-  end
-
-  def start_new_consumer(name, topic, opts \\ []) do
-    :ok = ensure_started(Cafex.Consumer.Kafka.Supervisor, [])
-    Cafex.Consumer.Kafka.Supervisor.start_consumer(name, topic, opts)
+    Cafex.Consumer.Supervisor.start_consumer(name, opts)
   end
 
   def start_topic(name, brokers, opts \\ []) do
@@ -31,9 +26,7 @@ defmodule Cafex.Supervisor do
     children = [
       # supervisor(Cafex.Topic.Supervisor, []), # Deprecated
       # supervisor(Cafex.Producer.Supervisor, []),
-      # supervisor(Cafex.Consumer.Supervisor, []),
-      # supervisor(Cafex.Consumer.Kafka.Supervisor, []),
-      # supervisor(Cafex.Consumer.ZK.Supervisor, [])
+      # supervisor(Cafex.Consumer.Supervisor, [])
     ]
     supervise children, strategy: :one_for_one,
                     max_restarts: 10,

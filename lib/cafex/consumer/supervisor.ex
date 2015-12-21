@@ -15,16 +15,16 @@ defmodule Cafex.Consumer.Supervisor do
 
   Read `Cafex.Consumer.Manager` for more details.
   """
-  @spec start_consumer(name :: atom, topic_name :: String.t, Cafex.Consumer.Manager.options) :: Supervisor.on_start_child
-  def start_consumer(name, topic_name, opts) do
-    Supervisor.start_child __MODULE__, [name, topic_name, opts]
+  @spec start_consumer(name :: atom, Cafex.Consumer.Manager.options) :: Supervisor.on_start_child
+  def start_consumer(name, opts) do
+    Supervisor.start_child __MODULE__, [name, opts]
   end
 
   @doc false
   def init([]) do
     children = [
       worker(Cafex.Consumer.Manager, [], restart: :transient,
-                                        shutdown: 2000)
+                                         shutdown: 2000)
     ]
     supervise children, strategy: :simple_one_for_one,
                     max_restarts: 10,

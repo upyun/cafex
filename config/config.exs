@@ -25,6 +25,7 @@ use Mix.Config
 
 config :cafex, :myconsumer,
   client_id: "cafex",
+  topic: "a_topic",
   offset_storage: :kafka, # :kafka or :zookeeper
   group_manager: :kafka,  # :kafka or :zookeeper
   lock: :consul,          # :consul or :zookeeper
