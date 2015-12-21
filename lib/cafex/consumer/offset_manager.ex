@@ -106,8 +106,7 @@ defmodule Cafex.Consumer.OffsetManager do
   when map_size(to_be_commit) == 0 do
     {:noreply, %{state | timer: nil}}
   end
-  def handle_info({:timeout, timer, :do_commit}, %{to_be_commit: to_be_commit,
-                                                   timer: timer} = state) do
+  def handle_info({:timeout, _timer, :do_commit}, %{to_be_commit: to_be_commit} = state) do
     partitions = Enum.map(to_be_commit, fn {partition, {offset, metadata}} ->
       {partition, offset, metadata}
     end)
