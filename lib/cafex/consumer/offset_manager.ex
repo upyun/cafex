@@ -62,10 +62,10 @@ defmodule Cafex.Consumer.OffsetManager do
                    topic: topic,
                    consumer_group: group,
                    partitions: partitions,
-                   auto_commit: Keyword.get(opts, :auto_commit, false),
-                   interval: Keyword.get(opts, :interval) || @interval,
+                   auto_commit: Keyword.get(opts, :auto_commit, true),
+                   interval:    Keyword.get(opts, :interval) || @interval,
                    max_buffers: Keyword.get(opts, :max_buffers) || @max_buffers,
-                   storage: Keyword.get(opts, :offset_storage) || @offset_storage}
+                   storage:     Keyword.get(opts, :offset_storage) || @offset_storage}
                  |> start_conn
     {:ok, state}
   end

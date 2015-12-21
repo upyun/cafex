@@ -182,7 +182,7 @@ defmodule Cafex.Consumer.Manager do
 
     offset_manager_cfg = [
       offset_storage: Util.get_config(opts, cfg, :offset_storage),
-      auto_commit:    Util.get_config(opts, cfg, :auto_commit),
+      auto_commit:    Util.get_config(opts, cfg, :auto_commit, true),
       interval:       Util.get_config(opts, cfg, :auto_commit_interval),
       max_buffers:    Util.get_config(opts, cfg, :auto_commit_max_buffers),
     ]
