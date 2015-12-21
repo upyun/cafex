@@ -1,7 +1,13 @@
 Cafex
 =====
 
-### Producer
+Cafex is a pure Elixir implementation of [Kafka][kafka] client with [ZooKeeper][zookeeper] and [Consul][consul.io] intergration.
+
+Cafex support Kafka 0.8 and 0.9 group membership APIs.
+
+Cafex provides all kafka APIs encapsulation, producer implementation and high-level consumer implementation.
+
+## Producer
 
 ```elixir
 iex> Application.start :cafex
@@ -50,7 +56,7 @@ This setting defaults to 0 (i.e. no delay).
 
 > NOTE: If `linger_ms` is set to `0`, the `batch_num` will not take effect.
 
-### Consumer
+## Consumer
 
 ```elixir
 defmodule MyConsumer do
@@ -110,7 +116,11 @@ Consumer 启动后会在 zookeeper 上建立下面这样的建构
 Leader 获取 `consumers/online` 和 `consumers/offline` 下面的所有节点，然后作负载均衡，并将结果（也就是每个 consumer 负责的 partition 列表）写入 `consumers/balance` 下的各 consumer 节点。
 每个 Consumer 都监听着 `consumers/balance` 下自己的相应节点的数据变化，发生变化时启动，或者关闭相关的 partition worker。
 
-### TODO
+## TODO
 
 * Simple Consumer
 * Add tests
+
+[kafka]: http://kafka.apache.org
+[zookeeper]: http://zookeeper.apache.org
+[consul.io]: https://consul.io
