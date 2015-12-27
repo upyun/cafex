@@ -17,6 +17,8 @@ defmodule Cafex.Supervisor do
     Cafex.Consumer.Supervisor.start_consumer(name, opts)
   end
 
+  defdelegate stop_consumer(name), to: Cafex.Consumer.Supervisor
+
   def start_topic(name, brokers, opts \\ []) do
     :ok = ensure_started(Cafex.Topic.Supervisor, []) # Deprecated
     Cafex.Topic.Supervisor.start_topic(name, brokers, opts)

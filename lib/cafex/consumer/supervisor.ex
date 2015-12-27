@@ -20,6 +20,8 @@ defmodule Cafex.Consumer.Supervisor do
     Supervisor.start_child __MODULE__, [name, opts]
   end
 
+  defdelegate stop_consumer(name_or_pid), to: Cafex.Consumer.Manager, as: :stop
+
   @doc false
   def init([]) do
     children = [

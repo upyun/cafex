@@ -48,4 +48,5 @@ defmodule Cafex do
   def start_consumer(name, opts \\ []) do
     Cafex.Supervisor.start_consumer(name, opts)
   end
+  defdelegate stop_consumer(name), to: Cafex.Supervisor
 end

@@ -137,6 +137,10 @@ defmodule Cafex.Consumer.Manager do
     GenServer.start_link __MODULE__, [name, opts], name: name
   end
 
+  def stop(pid) do
+    GenServer.call pid, :stop
+  end
+
   # ===================================================================
   #  GenServer callbacks
   # ===================================================================
@@ -210,6 +214,10 @@ defmodule Cafex.Consumer.Manager do
             |> start_group_manager
 
     {:ok, state}
+  end
+
+  def handle_call(:stop, _from, state) do
+    {:stop, :normal, :ok, state}
   end
 
   def handle_info({:timeout, _tref, {:restart_worker, partition}}, %{trefs: trefs} = state) do
