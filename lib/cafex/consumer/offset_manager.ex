@@ -106,15 +106,13 @@ defmodule Cafex.Consumer.OffsetManager do
   when map_size(to_be_commit) == 0 do
     {:noreply, %{state | timer: nil}}
   end
-  def handle_info({:timeout, _timer, :do_commit}, %{to_be_commit: to_be_commit} = state) do
-    partitions = Enum.map(to_be_commit, fn {partition, {offset, metadata}} ->
-      {partition, offset, metadata}
-    end)
-    do_offset_commit(partitions, state)
+  def handle_info({:timeout, _timer, :do_commit}, state) do
+    do_offset_commit(state)
     {:noreply, %{state | to_be_commit: %{}, timer: nil}}
   end
 
   def terminate(_reason, state) do
+    do_offset_commit(state)
     close_conn(state)
     :ok
   end
@@ -185,6 +183,16 @@ defmodule Cafex.Consumer.OffsetManager do
     state
   end
 
+  defp do_offset_commit(%{to_be_commit: to_be_commit} = state) do
+    partitions = Enum.map(to_be_commit, fn {partition, {offset, metadata}} ->
+      {partition, offset, metadata}
+    end)
+    do_offset_commit(partitions, state)
+  end
+
+  defp do_offset_commit([], state) do
+    {:ok, []}
+  end
   defp do_offset_commit(partitions, %{conn: conn, topic: topic, storage: storage} = state) do
     Logger.debug "Do offset commit: topic: #{inspect topic}, group: #{inspect state.consumer_group} partition offsets: #{inspect partitions},"
     request = Map.take(state, [:consumer_group,
