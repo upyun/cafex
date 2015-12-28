@@ -190,7 +190,7 @@ defmodule Cafex.Consumer.OffsetManager do
     do_offset_commit(partitions, state)
   end
 
-  defp do_offset_commit([], state) do
+  defp do_offset_commit([], _state) do
     {:ok, []}
   end
   defp do_offset_commit(partitions, %{conn: conn, topic: topic, storage: storage} = state) do
