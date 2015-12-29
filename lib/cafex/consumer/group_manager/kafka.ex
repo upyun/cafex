@@ -2,6 +2,8 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   @moduledoc """
   The implementation of Kafka Client-side Assignment Proposal
 
+  Supported Kafka 0.9.x or above.
+
   See [Kafka Client-side Assignment Proposal](https://cwiki.apache.org/confluence/display/KAFKA/Kafka+Client-side+Assignment+Proposal) to read more.
   """
   @behaviour :gen_fsm

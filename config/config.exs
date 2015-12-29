@@ -8,47 +8,38 @@ use Mix.Config
 # if you want to provide default values for your application for third-
 # party users, it should be done in your mix.exs file.
 
-# Sample configuration:
+# Sample configuration of consumers:
 #
-#     config :logger, :console,
-#       level: :info,
-#       format: "$date $time [$level] $metadata$message\n",
-#       metadata: [:user_id]
-
-# It is also possible to import configuration files, relative to this
-# directory. For example, you can emulate configuration per environment
-# by uncommenting the line below and defining dev.exs, test.exs and such.
-# Configuration from the imported file will override the ones defined
-# here (which is why it is important to import them last).
+# config :cafex, :myconsumer,
+#   client_id: "cafex",
+#   topic: "a_topic",
+#   brokers: [
+#     {"192.168.99.100", 9902},
+#     {"192.168.99.101", 9902},
+#     {"192.168.99.102", 9902}
+#   ],
+#   offset_storage: :kafka, # :kafka or :zookeeper
+#   group_manager: :kafka,  # :kafka or :zookeeper
+#   lock: :consul,          # :consul or :zookeeper
+#    group_session_timeout: 7000, # ms
+#   auto_commit: true,
+#   auto_commit_interval: 500,    # ms
+#   auto_commit_max_buffers: 50,
+#   fetch_wait_time: 100,         # ms
+#   fetch_min_bytes: 32 * 1024,
+#   fetch_max_bytes: 1024 * 1024,
+#   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
 #
-#     import_config "#{Mix.env}.exs"
-
-config :cafex, :myconsumer,
-  client_id: "cafex",
-  topic: "a_topic",
-  offset_storage: :kafka, # :kafka or :zookeeper
-  group_manager: :kafka,  # :kafka or :zookeeper
-  lock: :consul,          # :consul or :zookeeper
-  auto_commit: true,
-  auto_commit_interval: 500, # ms
-  auto_commit_max_buffers: 50,
-  zookeeper: [
-    timeout: 5000,
-    servers: [{"192.168.99.100", 2181}],
-    path: "/elena/cafex"
-  ],
-  fetch_wait_time: 100,
-  fetch_min_bytes: 32 * 1024,
-  fetch_max_bytes: 1024 * 1024,
-  handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
-
-config :cafex, :myconsumer2,
-  client_id: "cafex",
-  zookeeper: [
-    servers: [{"192.168.99.100", 2181}],
-    path: "/elena/cafex"
-  ],
-  handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
+# config :cafex, :myconsumer2,
+#   client_id: "cafex",
+#   group_manager: :zookeeper,
+#   locke: :zookeeper,
+#   zookeeper: [
+#     timeout: 5000,              # ms
+#     servers: [{"192.168.99.100", 2181}],
+#     path: "/elena/cafex"
+#   ],
+#   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
 
 config :consul,
   host: "localhost",

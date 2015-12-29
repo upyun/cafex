@@ -1,9 +1,10 @@
 defmodule Cafex.Consumer.GroupManager.ZK do
   @moduledoc """
-  This depends on ZooKeeper to rebalancing consumers
+  This depends on ZooKeeper to rebalancing and managing consumer group
 
   ## zookeeper structure
 
+  It will build the structure on zookeeper like below after consumer started:
 
   ```
     /cafex
@@ -19,9 +20,20 @@ defmodule Cafex.Consumer.GroupManager.ZK do
      |  |  |  |  |-- cafex@192.168.0.1                       # ephemeral
      |  |  |  |  |-- cafex@192.168.0.2                       # ephemeral
      |  |  |  |-- offline
-     |  |  |  |  |-- cafex@192.168.0.3                       # persistent
+     |  |  |  |  |-- cafex@192.168.0.3                       # persistent Deprecated
      |  |  |-- locks
   ```
+
+  First of all, every consumer will register itself under the node `consumers/online`.
+  All consumer will elected a leader, which will be responsible for balancing.
+  Leader collects all sub node under the `consumers/online` and `consumers/offline`,
+  and executes the balancing, writes the result to every consumer node under the
+  `consumers/balance` node.
+  All consumers is listening on the corresponding node under the `consumers/balance`
+  for changes to adjust the partition workers.
+
+  **NOTE**: For now, the consumer will use the erlang node name as its name to
+  register on the zookeeper, so make sure starting with the `-name` argument.
 
   """
   @behaviour :gen_fsm
