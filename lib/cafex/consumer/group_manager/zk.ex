@@ -58,6 +58,8 @@ defmodule Cafex.Consumer.GroupManager.ZK do
                :chroot,
                :timeout,
                :zk_pid,
+               :balance_node,
+               :online_node,
                :balance_path,
                :online_path,
                :offline_path]
@@ -89,6 +91,7 @@ defmodule Cafex.Consumer.GroupManager.ZK do
                    group: group,
                    topic: topic,
                    partitions: partitions,
+                   leader?: {false, nil},
                    servers: servers,
                    chroot: chroot,
                    timeout: timeout}
@@ -104,9 +107,11 @@ defmodule Cafex.Consumer.GroupManager.ZK do
 
   @doc false
   def rebalance(:timeout, %{leader?: {false, _}} = state) do
+    notify_manager(state)
     {:next_state, :idle, state}
   end
   def rebalance(:timeout, state) do
+    notify_manager(state)
     {:next_state, :idle, load_balance(state)}
   end
 
