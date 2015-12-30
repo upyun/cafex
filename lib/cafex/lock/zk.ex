@@ -56,7 +56,6 @@ defmodule Cafex.Lock.ZK do
 
   def handle_release(%{lock: {_, nil}} = state), do: {:ok, state}
   def handle_release(%{lock: {_, seq}, zk_server: zk_server, zk: zk_pid} = state) do
-    # Cafex.ZK.Lock.release(pid, seq)
     Cafex.Lock.ZK.Server.release(zk_server, zk_pid, seq)
     {:ok, %{state | lock: {false, nil}}}
   end

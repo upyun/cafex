@@ -67,7 +67,7 @@ defmodule Cafex.Lock do
   end
 
   def release(pid) do
-    :gen_fsm.sync_send_event pid, :release, :infinity
+    :gen_fsm.sync_send_all_state_event pid, :release, :infinity
   end
 
   # ===================================================================
@@ -111,19 +111,10 @@ defmodule Cafex.Lock do
   end
 
   @doc false
-  def locked(:release, _from, %{locker: locker, data: data} = state) do
-    {:ok, data} = locker.handle_release(data)
-    {:stop, :normal, :ok, %{state | data: data}}
-  end
-
-  @doc false
   def waiting(:timeout, %{from: from} = state) do
     send from, {:lock, :timeout}
     {:stop, :normal, state}
   end
-  # def waiting(:lock_changed, state) do
-  #   {:next_state, :prepared, state, 0}
-  # end
 
   @doc false
   def handle_event(event, state_name, state_data) do
@@ -131,6 +122,10 @@ defmodule Cafex.Lock do
   end
 
   @doc false
+  def handle_sync_event(:release, _from, _state_name, %{locker: locker, data: data} = state_data) do
+    {:ok, data} = locker.handle_release(data)
+    {:stop, :normal, :ok, %{state_data | data: data}}
+  end
   def handle_sync_event(event, _from, state_name, state_data) do
     {:stop, {:bad_sync_event, state_name, event}, state_data}
   end
