@@ -135,7 +135,7 @@ config :cafex, :myconsumer,
   zookeeper: [
     timeout: 5000,
     servers: [{"192.168.99.100", 2181}],
-    path: "/cafex"
+    chroot: "/cafex"
   ],
   ...
 ```

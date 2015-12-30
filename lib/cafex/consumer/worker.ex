@@ -137,7 +137,7 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
-  def handle_info({:lock, :ok}, :waiting_lock, %{lock: {false, lock}} = state_data) do
+  def handle_info({:lock, :ok, lock}, :waiting_lock, %{lock: {false, lock}} = state_data) do
     {:next_state, :prepare, %{state_data | lock: {true, lock}}, 0}
   end
 

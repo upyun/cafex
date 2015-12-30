@@ -32,7 +32,7 @@ defmodule Cafex.Lock.ZK do
   # ===================================================================
 
   def init([path, opts]) do
-    timeout = Keyword.get(opts, :zk_timeout, @timeout)
+    timeout = Keyword.get(opts, :timeout, @timeout)
     servers = Keyword.get(opts, :servers)
     chroot  = Keyword.get(opts, :chroot, @chroot) |> :erlang.binary_to_list
     path    = Path.join("/", path)

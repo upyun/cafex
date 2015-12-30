@@ -101,7 +101,7 @@ defmodule Cafex.Lock do
   def prepared(:timeout, %{from: {pid, _}, timeout_start: start, timeout: timeout} = state) do
     case do_acquire(state) do
       {:ok, data} ->
-        send pid, {:lock, :ok}
+        send pid, {:lock, :ok, self}
         {:next_state, :locked, %{state | data: data}}
       {:wait, data} ->
         {:next_state, :waiting, %{state | data: data}, time_left(timeout, start)}
@@ -112,7 +112,7 @@ defmodule Cafex.Lock do
 
   @doc false
   def waiting(:timeout, %{from: from} = state) do
-    send from, {:lock, :timeout}
+    send from, {:lock, :timeout, self}
     {:stop, :normal, state}
   end
 
