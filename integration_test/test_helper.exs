@@ -4,7 +4,7 @@ Code.require_file("support/zk_helper.exs", __DIR__)
 Logger.remove_backend(:console)
 
 zk_cfg = Application.get_env(:cafex, :zookeeper)
-zk_prefix  = Keyword.get(zk_cfg, :path)
+zk_prefix  = Keyword.get(zk_cfg, :chroot)
 {:ok, pid} = ZKHelper.connect(zk_cfg)
 :ok = ZKHelper.rmr(pid, zk_prefix)
 # ZKHelper.close(pid)

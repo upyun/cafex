@@ -8,9 +8,9 @@ defmodule Cafex.Integration.ZK.UtilTest do
     zk_servers = Keyword.get(zk_cfg, :servers)
                |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end)
     zk_timeout = Keyword.get(zk_cfg, :timeout)
-    zk_prefix  = Keyword.get(zk_cfg, :path)
-    zk_prefix  = Path.join(zk_prefix, "util_test")
-    {:ok, pid} = :erlzk.connect(zk_servers, zk_timeout)
+    chroot = Keyword.get(zk_cfg, :chroot)
+    zk_prefix = "/util_test"
+    {:ok, pid} = :erlzk.connect(zk_servers, zk_timeout, chroot: chroot)
 
     on_exit fn ->
       ZKHelper.rmr(pid, zk_prefix)

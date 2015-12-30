@@ -8,11 +8,11 @@ defmodule Cafex.Integration.ZK.LeaderTest do
     zk_servers = Keyword.get(zk_cfg, :servers)
                |> Enum.map(fn {h, p} -> {:erlang.bitstring_to_list(h), p} end)
     zk_timeout = Keyword.get(zk_cfg, :timeout)
-    zk_prefix  = Keyword.get(zk_cfg, :path)
-    zk_prefix  = Path.join(zk_prefix, "leader_test")
-    {:ok, pid1} = :erlzk.connect(zk_servers, zk_timeout)
-    {:ok, pid2} = :erlzk.connect(zk_servers, zk_timeout)
-    {:ok, pid3} = :erlzk.connect(zk_servers, zk_timeout)
+    chroot = Keyword.get(zk_cfg, :chroot)
+    zk_prefix = "/leader_test"
+    {:ok, pid1} = :erlzk.connect(zk_servers, zk_timeout, chroot: chroot)
+    {:ok, pid2} = :erlzk.connect(zk_servers, zk_timeout, chroot: chroot)
+    {:ok, pid3} = :erlzk.connect(zk_servers, zk_timeout, chroot: chroot)
 
     on_exit fn ->
       ZKHelper.rmr(pid1, zk_prefix)
