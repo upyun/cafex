@@ -118,7 +118,7 @@ defmodule Cafex.Producer.Worker do
   end
   defp maybe_produce(message, from, %{batches: batches, batch_num: batch_num} = state) when length(batches) + 1 >= batch_num do
     result = [{from, message}|batches] |> Enum.reverse |> do_produce(state)
-    %{state|batches: []}
+    state = %{state|batches: []}
     case result do
       :ok -> {:noreply, state}
       {:error, reason} -> {:stop, reason, state}
