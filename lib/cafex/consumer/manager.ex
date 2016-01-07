@@ -28,6 +28,7 @@ defmodule Cafex.Consumer.Manager do
     * `:auto_commit`
     * `:auto_commit_interval`
     * `:auto_commit_max_buffers`
+    * `:auto_offset_reset`
     * `:fetch_wait_time`
     * `:fetch_min_bytes`
     * `:fetch_max_bytes`
@@ -87,6 +88,7 @@ defmodule Cafex.Consumer.Manager do
                   {:auto_commit, boolean} |
                   {:auto_commit_interval, integer} |
                   {:auto_commit_max_buffers, integer} |
+                  {:auto_offset_reset, :earliest | :latest} |
                   {:lock, :consul | :zookeeper} |
                   {:group_manager, :kafka | :zookeeper} |
                   {:offset_storage, :kafka | :zookeeper} |
@@ -110,6 +112,7 @@ defmodule Cafex.Consumer.Manager do
               workers: WorkerPartition.new,
               trefs: HashDict.new,
               offset_manager_cfg: [
+                auto_offset_reset: :latest,
                 offset_storage: :kafka
               ],
               leader: {false, nil}
@@ -191,6 +194,7 @@ defmodule Cafex.Consumer.Manager do
       auto_commit:    Util.get_config(opts, cfg, :auto_commit, true),
       interval:       Util.get_config(opts, cfg, :auto_commit_interval),
       max_buffers:    Util.get_config(opts, cfg, :auto_commit_max_buffers),
+      offset_reset:   Util.get_config(opts, cfg, :auto_offset_reset, :latest)
     ]
 
     state = %State{ group: group,

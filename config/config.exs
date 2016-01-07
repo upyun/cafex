@@ -25,6 +25,7 @@ use Mix.Config
 #   auto_commit: true,
 #   auto_commit_interval: 500,    # ms
 #   auto_commit_max_buffers: 50,
+#   auto_offset_reset: :latest,
 #   fetch_wait_time: 100,         # ms
 #   fetch_min_bytes: 32 * 1024,
 #   fetch_max_bytes: 1024 * 1024,

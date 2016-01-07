@@ -6,6 +6,7 @@ defmodule Cafex.Consumer.OffsetManager do
   @max_buffers 50
   @interval 500
   @offset_storage :kafka
+  @offset_reset :latest
 
   defmodule State do
     @moduledoc false
@@ -21,6 +22,7 @@ defmodule Cafex.Consumer.OffsetManager do
                timer: nil,
                max_buffers: 0,
                auto_commit: true,
+               offset_reset: :latest,
                storage: nil
   end
 
@@ -53,6 +55,10 @@ defmodule Cafex.Consumer.OffsetManager do
     GenServer.call pid, {:offset_fetch, partition, leader_conn}
   end
 
+  def offset_reset(pid, partition, leader_conn) do
+    GenServer.call pid, {:offst_reset, partition, leader_conn}
+  end
+
   # ===================================================================
   # GenServer callbacks
   # ===================================================================
@@ -62,10 +68,11 @@ defmodule Cafex.Consumer.OffsetManager do
                    topic: topic,
                    consumer_group: group,
                    partitions: partitions,
-                   auto_commit: Keyword.get(opts, :auto_commit, true),
-                   interval:    Keyword.get(opts, :interval) || @interval,
-                   max_buffers: Keyword.get(opts, :max_buffers) || @max_buffers,
-                   storage:     Keyword.get(opts, :offset_storage) || @offset_storage}
+                   auto_commit:  Keyword.get(opts, :auto_commit, true),
+                   interval:     Keyword.get(opts, :interval) || @interval,
+                   max_buffers:  Keyword.get(opts, :max_buffers) || @max_buffers,
+                   offset_reset: Keyword.get(opts, :offset_reset) || @offset_reset,
+                   storage:      Keyword.get(opts, :offset_storage) || @offset_storage}
                  |> start_conn
     {:ok, state}
   end
@@ -100,6 +107,13 @@ defmodule Cafex.Consumer.OffsetManager do
       error ->
         {:reply, error, state}
     end
+  end
+
+  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: :earliest} = state) do
+    {:reply, get_earliest_offset(topic, partition, leader_conn), state}
+  end
+  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: :latest} = state) do
+    {:reply, get_latest_offset(topic, partition, leader_conn), state}
   end
 
   def handle_info({:timeout, _timer, :do_commit}, %{to_be_commit: to_be_commit} = state)
@@ -214,8 +228,8 @@ defmodule Cafex.Consumer.OffsetManager do
     end
   end
 
-  defp get_earliest_offset(topic, partition, conn) when is_integer(partition) do
-    request = %OffsetRequest{topics: [{topic, [{partition, :earliest, 1}]}]}
+  defp get_offset(topic, partition, conn, time) when is_integer(partition) do
+    request = %OffsetRequest{topics: [{topic, [{partition, time, 1}]}]}
     case Connection.request(conn, request) do
       {:ok, %{offsets: [{_, [%{error: :no_error, offsets: [offset]}]}]}} ->
         {:ok, {offset, ""}}
@@ -226,6 +240,13 @@ defmodule Cafex.Consumer.OffsetManager do
       error ->
         error
     end
+  end
+
+  defp get_earliest_offset(topic, partition, conn) do
+    get_offset(topic, partition, conn, :earliest)
+  end
+  defp get_latest_offset(topic, partition, conn) do
+    get_offset(topic, partition, conn, :latest)
   end
 
   defp cancel_timer(%{timer: nil} = state), do: state

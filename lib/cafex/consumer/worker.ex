@@ -199,16 +199,22 @@ defmodule Cafex.Consumer.Worker do
       {:ok, %{topics: [{^topic, [%{error: :not_leader_for_partition = reason}]}]}} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
         {:error, :not_leader_for_partition, state}
-      {:ok, %{topics: [{^topic, [%{error: reason}]}]}} ->
+      {:ok, %{topics: [{^topic, [%{error: :offset_out_of_range = reason}]}]}} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
-        {:ok, state}
+        # {:ok, state}
+        {:error, :offset_out_of_range, state}
       {:error, reason} ->
         Logger.error "Failed to fetch new messages: #{inspect reason}, topic: #{topic}, partition: #{partition}, offset: #{offset}"
         {:ok, state}
     end
     |> case do
-      {:ok, %{buffer: []} = state} -> {:next_state, :consuming, state, 1000}
-      {:ok, state} -> {:next_state, :consuming, state, 0}
+      {:ok, %{buffer: []} = state} ->
+        {:next_state, :consuming, state, 1000}
+      {:ok, state} ->
+        {:next_state, :consuming, state, 0}
+      {:error, :offset_out_of_range, state} ->
+        state = offset_reset(state)
+        {:next_state, :consuming, state, 0}
       {:error, reason, state} ->
         {:stop, reason, state}
     end
@@ -240,5 +246,10 @@ defmodule Cafex.Consumer.Worker do
     {:ok, data} = handler.consume(%{message | topic: topic, partition: partition}, handler_data)
     OffsetManager.offset_commit(coordinator, partition, offset + 1)
     %{state | handler_data: data}
+  end
+
+  defp offset_reset(%{coordinator: coordinator, partition: partition, conn: conn} = state) do
+    {:ok, {offset, _}} = OffsetManager.offset_reset(coordinator, partition, conn)
+    %{state | hwm_offset: offset}
   end
 end
