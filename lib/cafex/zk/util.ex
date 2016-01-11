@@ -69,7 +69,7 @@ defmodule Cafex.ZK.Util do
                              {x, nil}
                          end
                        end)
-                       |> Enum.into(HashDict.new)}
+                       |> Enum.into(%{})}
       {:error, reason} ->
         {:error, reason}
     end

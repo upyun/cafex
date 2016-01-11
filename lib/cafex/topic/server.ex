@@ -178,12 +178,12 @@ defmodule Cafex.Topic.Server do
 
   defp extract_metadata(metadata) do
     brokers = metadata.brokers |> Enum.map(fn b -> {b.node_id, {b.host, b.port}} end)
-                               |> Enum.into(HashDict.new)
+                               |> Enum.into(%{})
 
     [%{name: name, partitions: partitions}] = metadata.topics
 
     leaders = partitions |> Enum.map(fn p -> {p.partition_id, p.leader} end)
-                         |> Enum.into(HashDict.new)
+                         |> Enum.into(%{})
 
     %{name: name, brokers: brokers, leaders: leaders, partitions: length(partitions)}
   end
@@ -209,8 +209,8 @@ defmodule Cafex.Topic.Server do
   end
 
   defp leader_for_partition(%{brokers: brokers, leaders: leaders}, partition) do
-    leader = HashDict.get(leaders, partition)
-    HashDict.get(brokers, leader)
+    leader = Map.get(leaders, partition)
+    Map.get(brokers, leader)
   end
 
   defp get_offset(partition, _time, _max, %{partitions: partitions}) when partition >= partitions do

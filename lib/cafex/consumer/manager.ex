@@ -110,7 +110,7 @@ defmodule Cafex.Consumer.Manager do
               offset_manager: nil,
               worker_cfg: nil,
               workers: WorkerPartition.new,
-              trefs: HashDict.new,
+              trefs: %{},
               offset_manager_cfg: [
                 auto_offset_reset: :latest,
                 offset_storage: :kafka
@@ -225,7 +225,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   def handle_info({:timeout, _tref, {:restart_worker, partition}}, %{trefs: trefs} = state) do
-    state = %{state | trefs: HashDict.delete(trefs, partition)}
+    state = %{state | trefs: Map.delete(trefs, partition)}
     state = start_worker(partition, state)
     {:noreply, state}
   end
@@ -253,7 +253,7 @@ defmodule Cafex.Consumer.Manager do
       nil -> state
       partition ->
         tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
-        %{state | trefs: HashDict.put(trefs, partition, tref)}
+        %{state | trefs: Map.put(trefs, partition, tref)}
     end
     {:noreply, state}
   end
@@ -267,7 +267,7 @@ defmodule Cafex.Consumer.Manager do
         Logger.info "Worker #{inspect pid} for partition #{inspect partition} stopped with the reason: #{inspect reason}, try to restart it"
         state = load_metadata(state)
         tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
-        %{state | trefs: HashDict.put(trefs, partition, tref)}
+        %{state | trefs: Map.put(trefs, partition, tref)}
     end
     {:noreply, state}
   end
@@ -295,7 +295,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   defp find_group_coordinator(%{group: group, brokers: brokers} = state) do
-    {:ok, {host, port}} = GroupCoordinator.request(HashDict.values(brokers), group)
+    {:ok, {host, port}} = GroupCoordinator.request(Map.values(brokers), group)
     %{state | group_coordinator: {host, port}}
   end
 
@@ -399,8 +399,8 @@ defmodule Cafex.Consumer.Manager do
                                     worker_cfg: worker_cfg,
                                     offset_manager: offset_manager}) do
     Logger.info "Starting consumer worker: #{topic}:#{group}:#{partition}"
-    leader = HashDict.get(leaders, partition)
-    broker = HashDict.get(brokers, leader)
+    leader = Map.get(leaders, partition)
+    broker = Map.get(brokers, leader)
     worker_cfg = Keyword.merge([client_id: client_id], worker_cfg)
     Worker.start_link(offset_manager, handler, topic, group, partition, broker, worker_cfg)
   end

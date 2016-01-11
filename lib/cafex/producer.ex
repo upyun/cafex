@@ -34,7 +34,7 @@ defmodule Cafex.Producer do
               brokers: nil,
               leaders: nil,
               partitions: 0,
-              workers: HashDict.new,
+              workers: %{},
               client_id: nil,
               worker_opts: nil
   end
@@ -130,7 +130,7 @@ defmodule Cafex.Producer do
           state
         {k, _} ->
           Logger.error "Producer worker down: #{inspect reason}, restarting"
-          start_worker(k, %{state | workers: HashDict.delete(workers, k)})
+          start_worker(k, %{state | workers: Map.delete(workers, k)})
       end
     {:noreply, state}
   end
@@ -151,12 +151,12 @@ defmodule Cafex.Producer do
                                                workers: workers} = state) do
     {partition, new_state} = partitioner.partition(message, partitioner_state)
     # TODO: check partition availability
-    worker_pid = HashDict.get(workers, partition)
+    worker_pid = Map.get(workers, partition)
     {worker_pid, %{state | partitioner_state: new_state}}
   end
   defp dispatch(%{partition: partition}, %{workers: workers} = state) do
     # TODO: check partition availability
-    worker_pid = HashDict.get(workers, partition)
+    worker_pid = Map.get(workers, partition)
     {worker_pid, state}
   end
 
@@ -179,11 +179,11 @@ defmodule Cafex.Producer do
   defp start_worker(partition, %{topic: topic, brokers: brokers,
                                  leaders: leaders, workers: workers,
                                  worker_opts: worker_opts} = state) do
-    leader = HashDict.get(leaders, partition)
-    broker = HashDict.get(brokers, leader)
+    leader = Map.get(leaders, partition)
+    broker = Map.get(brokers, leader)
     Logger.debug fn -> "Starting producer worker { topic: #{topic}, partition: #{partition}, broker: #{inspect broker} } ..." end
     {:ok, pid} = Cafex.Producer.Worker.start_link(broker, topic, partition, worker_opts)
-    %{state | workers: HashDict.put(workers, partition, pid)}
+    %{state | workers: Map.put(workers, partition, pid)}
   end
 
 end

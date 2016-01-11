@@ -308,10 +308,10 @@ defmodule Cafex.Consumer.GroupManager.ZK do
     consumers = Enum.concat(online_children, offline_children) |> Enum.uniq
     {:ok, balanced} = ZK.get_children_with_data(zk, balance_path)
     {consumers, should_delete} = Enum.map_reduce(consumers, balanced, fn p, acc ->
-      data = decode_partitions(HashDict.get(acc, p))
-      {{String.to_atom(p), data}, HashDict.delete(acc, p)}
+      data = decode_partitions(Map.get(acc, p))
+      {{String.to_atom(p), data}, Map.delete(acc, p)}
     end)
-    {Enum.sort(consumers), HashDict.keys(should_delete)}
+    {Enum.sort(consumers), Map.keys(should_delete)}
   end
 
   defp zk_set_consumer_partitions(zk, path, consumer, partitions) do

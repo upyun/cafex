@@ -4,31 +4,31 @@ defmodule Cafex.Consumer.WorkerPartition do
 
   ```
   {
-    #HashDict<[worker_pid => partition]>,
-    #HashDict<[partition => worker_pid]>
+    #Map{worker_pid => partition},
+    #Map{partition => worker_pid}
   }
   ```
 
   """
 
   def new do
-    {HashDict.new, HashDict.new}
+    {%{}, %{}}
   end
 
   def partitions({_w2p, p2w}) do
-    HashDict.keys(p2w)
+    Map.keys(p2w)
   end
 
   def workers({w2p, _p2w}) do
-    HashDict.keys(w2p)
+    Map.keys(w2p)
   end
 
   def partition({w2p, _p2w}, worker) do
-    HashDict.get(w2p, worker)
+    Map.get(w2p, worker)
   end
 
   def worker({_w2p, p2w}, partition) do
-    HashDict.get(p2w, partition)
+    Map.get(p2w, partition)
   end
 
   def update({w2p, p2w} = index, partition, worker) do
@@ -36,18 +36,18 @@ defmodule Cafex.Consumer.WorkerPartition do
     old_partition = partition(index, worker)
 
     w2p = w2p
-        |> HashDict.delete(old_worker)
-        |> HashDict.put(worker, partition)
+        |> Map.delete(old_worker)
+        |> Map.put(worker, partition)
 
     p2w = p2w
-        |> HashDict.delete(old_partition)
-        |> HashDict.put(partition, worker)
+        |> Map.delete(old_partition)
+        |> Map.put(partition, worker)
 
     {w2p, p2w}
   end
 
   def delete({w2p, p2w}, partition, worker) do
-    {HashDict.delete(w2p, worker), HashDict.delete(p2w, partition)}
+    {Map.delete(w2p, worker), Map.delete(p2w, partition)}
   end
 
   def delete_by_worker(index, worker) do

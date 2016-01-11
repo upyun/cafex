@@ -16,12 +16,12 @@ defmodule Cafex.Kafka.Metadata do
 
   def extract_metadata(metadata) do
     brokers = metadata.brokers |> Enum.map(fn b -> {b.node_id, {b.host, b.port}} end)
-                               |> Enum.into(HashDict.new)
+                               |> Enum.into(%{})
 
     [%{name: name, partitions: partitions}] = metadata.topics
 
     leaders = partitions |> Enum.map(fn p -> {p.partition_id, p.leader} end)
-                         |> Enum.into(HashDict.new)
+                         |> Enum.into(%{})
 
     %{name: name, brokers: brokers, leaders: leaders, partitions: length(partitions)}
   end
