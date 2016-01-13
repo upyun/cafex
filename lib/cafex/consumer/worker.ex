@@ -243,8 +243,15 @@ defmodule Cafex.Consumer.Worker do
                                                      partition: partition,
                                                      handler: handler,
                                                      handler_data: handler_data} = state) do
-    {:ok, data} = handler.consume(%{message | topic: topic, partition: partition}, handler_data)
-    OffsetManager.offset_commit(coordinator, partition, offset + 1)
+    message = %{message | topic: topic, partition: partition}
+    data = case handler.consume(message, handler_data) do
+      {:ok, data} ->
+        OffsetManager.offset_commit(coordinator, partition, offset + 1)
+        data
+      {:nocommit, data} ->
+        data
+    end
+
     %{state | handler_data: data}
   end
 

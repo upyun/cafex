@@ -14,10 +14,11 @@ defmodule Cafex.Consumer do
   use Behaviour
 
   @type state :: term
+  @type done :: :ok | :nocommit
 
   defcallback init(args :: term) :: {:ok, state} | {:error, reason :: term}
 
-  defcallback consume(message :: Message.t, state) :: {:ok, state}
+  defcallback consume(message :: Message.t, state) :: {done, state}
 
   defcallback terminate(state) :: :ok
 
