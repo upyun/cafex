@@ -21,7 +21,7 @@ use Mix.Config
 #   offset_storage: :kafka, # :kafka or :zookeeper
 #   group_manager: :kafka,  # :kafka or :zookeeper
 #   lock: :consul,          # :consul or :zookeeper
-#    group_session_timeout: 7000, # ms
+#   group_session_timeout: 7000, # ms
 #   auto_commit: true,
 #   auto_commit_interval: 500,    # ms
 #   auto_commit_max_buffers: 50,
