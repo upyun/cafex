@@ -27,7 +27,7 @@ defmodule Cafex.Consumer do
     quote do
       @behaviour Cafex.Consumer
 
-      def init(_), do: {:ok, []}
+      def init(args), do: {:ok, args}
       def consume(_msg, state), do: {:ok, state}
       def terminate(_state), do: :ok
 
