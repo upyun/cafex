@@ -134,6 +134,7 @@ defmodule Cafex.Producer.Worker do
     {:noreply, %{state|batches: [{from, message}|batches], timer: timer}}
   end
 
+  defp do_produce([], _state), do: :ok
   defp do_produce(message_pairs, state) do
     case do_request(message_pairs, state) do
       {:ok, replies} ->
