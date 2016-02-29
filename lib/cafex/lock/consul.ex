@@ -51,7 +51,8 @@ defmodule Cafex.Lock.Consul do
     case Consul.Kv.put(path, "", release: Session.get(pid)) do
       true ->
         {:ok, %{state | lock: nil}}
-      _error ->
+      error ->
+        Log.error("Consul error on putting release session request: #{inspect error}")
         {:error, :consul_error}
     end
   end
