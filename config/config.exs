@@ -29,6 +29,7 @@ use Mix.Config
 #   fetch_wait_time: 100,         # ms
 #   fetch_min_bytes: 32 * 1024,
 #   fetch_max_bytes: 1024 * 1024,
+#   pre_fetch_size: 50,
 #   handler: {Cafex.Consumer.LogConsumer, [level: :debug]}
 #
 # config :cafex, :myconsumer2,

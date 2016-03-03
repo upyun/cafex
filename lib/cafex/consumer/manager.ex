@@ -160,6 +160,7 @@ defmodule Cafex.Consumer.Manager do
     fetch_wait_time = Util.get_config(opts, cfg, :fetch_wait_time)
     fetch_min_bytes = Util.get_config(opts, cfg, :fetch_min_bytes)
     fetch_max_bytes = Util.get_config(opts, cfg, :fetch_max_bytes)
+    pre_fetch_size  = Util.get_config(opts, cfg, :pre_fetch_size)
 
     zk_config  = Util.get_config(opts, cfg, :zookeeper, [])
     zk_cfg = [
@@ -204,6 +205,7 @@ defmodule Cafex.Consumer.Manager do
                     handler: handler,
                     lock: lock,
                     worker_cfg: [
+                      pre_fetch_size: pre_fetch_size,
                       max_wait_time: fetch_wait_time,
                       min_bytes: fetch_min_bytes,
                       max_bytes: fetch_max_bytes,

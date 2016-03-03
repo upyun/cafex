@@ -3,6 +3,7 @@ defmodule Cafex.Consumer.Worker do
 
   require Logger
 
+  @pre_fetch_size 50
   @max_wait_time 100
   @min_bytes 32 * 1024
   @max_bytes 1024 * 1024
@@ -30,7 +31,8 @@ defmodule Cafex.Consumer.Worker do
               lock_cfg: nil,
               buffer: [],
               hwm_offset: 0,
-              batch_size: 50,
+              fetching: false,
+              pre_fetch_size: 50,
               coordinator: nil,
               handler: nil,
               handler_data: nil
@@ -67,6 +69,7 @@ defmodule Cafex.Consumer.Worker do
                    coordinator: coordinator,
                    handler: handler,
                    lock_cfg:  Keyword.get(opts, :lock_cfg),
+                   pre_fetch_size: Keyword.get(opts, :pre_fetch_size) || @pre_fetch_size,
                    max_wait_time: Keyword.get(opts, :max_wait_time) || @max_wait_time,
                    min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
                    max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
@@ -169,6 +172,7 @@ defmodule Cafex.Consumer.Worker do
     mod.release(lock)
   end
 
+  defp fetch_messages(%{fetching: true} = state), do: state
   defp fetch_messages(%{topic: topic,
                         partition: partition,
                         hwm_offset: offset,
@@ -181,13 +185,14 @@ defmodule Cafex.Consumer.Worker do
     |> (&(struct(Fetch.Request, &1))).()
 
     Connection.async_request(conn, request, {:fsm, self})
-    state
+    %{state | fetching: true}
   end
 
   defp handle_fetch_response(response, %{topic: topic,
                                          partition: partition,
                                          buffer: buffer,
                                          hwm_offset: offset} = state) do
+    state = %{state | fetching: false}
     case response do
       {:ok, %{topics: [{^topic, [%{error: :no_error, messages: messages, hwm_offset: hwm_offset}]}]}} ->
         buffer = buffer ++ messages
@@ -220,13 +225,15 @@ defmodule Cafex.Consumer.Worker do
     end
   end
 
-  defp consume(%{batch_size: batch_size} = state) do
-    state = %{buffer: buffer} = do_consume(batch_size, state)
-    case length(buffer) < batch_size do
-      true  ->
-        state = fetch_messages(state)
-        {:next_state, :waiting_messages, state}
-      false ->
+  defp consume(%{pre_fetch_size: pre_fetch_size} = state) do
+    state = %{buffer: buffer} = do_consume(pre_fetch_size, state)
+    buffer_length = length(buffer)
+    cond do
+      buffer_length == 0->
+        {:next_state, :waiting_messages, fetch_messages(state)}
+      buffer_length <= pre_fetch_size ->
+        {:next_state, :consuming, fetch_messages(state), 0}
+      true ->
         {:next_state, :consuming, state, 0}
     end
   end
