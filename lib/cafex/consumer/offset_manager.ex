@@ -56,7 +56,7 @@ defmodule Cafex.Consumer.OffsetManager do
   end
 
   def offset_reset(pid, partition, leader_conn) do
-    GenServer.call pid, {:offst_reset, partition, leader_conn}
+    GenServer.call pid, {:offset_reset, partition, leader_conn}
   end
 
   # ===================================================================
@@ -109,11 +109,8 @@ defmodule Cafex.Consumer.OffsetManager do
     end
   end
 
-  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: :earliest} = state) do
-    {:reply, get_earliest_offset(topic, partition, leader_conn), state}
-  end
-  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: :latest} = state) do
-    {:reply, get_latest_offset(topic, partition, leader_conn), state}
+  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: strategy} = state) do
+    {:reply, get_offset(topic, partition, leader_conn, strategy), state}
   end
 
   def handle_info({:timeout, _timer, :do_commit}, %{to_be_commit: to_be_commit} = state)
