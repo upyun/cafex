@@ -18,7 +18,7 @@ defmodule Cafex.Producer.Supervisor do
   @doc false
   def init([]) do
     children = [
-      worker(Cafex.Producer, [], restart: :permanent,
+      worker(Cafex.Producer, [], restart: :temporary,
                                 shutdown: 2000)
     ]
     supervise children, strategy: :simple_one_for_one,
