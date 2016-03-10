@@ -96,14 +96,14 @@ defmodule Cafex.Consumer.OffsetManager do
   def handle_call({:offset_fetch, partition, _leader_conn}, _from, %{partitions: partitions} = state) when partition >= partitions do
     {:reply, {:error, :unknown_partition}, state}
   end
-  def handle_call({:offset_fetch, partition, leader_conn}, _from, %{topic: topic} = state) do
+  def handle_call({:offset_fetch, partition, leader_conn}, _from, %{topic: topic, offset_reset: strategy} = state) do
     case do_offset_fetch(partition, state) do
       {:ok, {-1, _}} ->
-        {:reply, get_earliest_offset(topic, partition, leader_conn), state}
+        {:reply, get_offset(topic, partition, leader_conn, strategy), state}
       {:ok, _} = reply ->
         {:reply, reply, state}
       {:error, :unknown_topic_or_partition} ->
-        {:reply, get_earliest_offset(topic, partition, leader_conn), state}
+        {:reply, get_offset(topic, partition, leader_conn, strategy), state}
       error ->
         {:reply, error, state}
     end
@@ -237,13 +237,6 @@ defmodule Cafex.Consumer.OffsetManager do
       error ->
         error
     end
-  end
-
-  defp get_earliest_offset(topic, partition, conn) do
-    get_offset(topic, partition, conn, :earliest)
-  end
-  defp get_latest_offset(topic, partition, conn) do
-    get_offset(topic, partition, conn, :latest)
   end
 
   defp cancel_timer(%{timer: nil} = state), do: state
