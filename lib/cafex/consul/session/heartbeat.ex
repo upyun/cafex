@@ -2,6 +2,8 @@ defmodule Cafex.Consul.Session.Heartbeat do
   @moduledoc false
   use GenServer
 
+  require Logger
+
   defmodule State do
     @moduledoc false
     defstruct [:timer, :session, :interval]
@@ -36,7 +38,8 @@ defmodule Cafex.Consul.Session.Heartbeat do
       {:ok, _ret} ->
         new_timer = :erlang.send_after(interval, self, :beat)
         {:noreply, %{state | timer: new_timer}}
-      _ ->
+      error ->
+        Logger.warn "Consul session [#{inspect session}] renew error: #{inspect error}"
         {:stop, :consul_error, state}
     end
   end
