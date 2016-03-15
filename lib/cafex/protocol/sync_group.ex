@@ -34,9 +34,12 @@ defmodule Cafex.Protocol.SyncGroup do
                 assignment_size :: 32-signed,
                 assignment :: size(assignment_size)-binary>>) do
 
-    assignment = parse_assignment(assignment)
-    %Response{error: decode_error(error_code),
-              member_assignment: assignment}
+    error = decode_error(error_code)
+    assignment = case error do
+      :no_error -> parse_assignment(assignment)
+      _ -> nil
+    end
+    %Response{error: error, member_assignment: assignment}
   end
 
   def encode_member_assignment({member_id, assignment}) do
