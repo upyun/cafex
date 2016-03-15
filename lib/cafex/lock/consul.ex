@@ -52,7 +52,7 @@ defmodule Cafex.Lock.Consul do
       true ->
         {:ok, %{state | lock: nil}}
       error ->
-        Log.error("Consul error on putting release session request: #{inspect error}")
+        Logger.error("Consul error on putting release session request: #{inspect error}")
         {:error, :consul_error}
     end
   end
