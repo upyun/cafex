@@ -243,6 +243,10 @@ defmodule Cafex.Consumer.Manager do
     state = start_offset_manager(state)
     {:noreply, state}
   end
+  def handle_info({:EXIT, pid, reason}, %{group_manager: {manager, pid}} = state) do
+    Logger.error "GroupManager exit with the reason #{inspect reason}"
+    {:stop, reason, %{state | group_manager: {manager, nil}}}
+  end
   def handle_info({:EXIT, pid, :not_leader_for_partition}, state) do
     Logger.warn "Worker stopped due to not_leader_for_partition, reload leader and restart it"
     state = load_metadata(state)
