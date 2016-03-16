@@ -114,8 +114,7 @@ defmodule Cafex.Consumer.Manager do
               offset_manager_cfg: [
                 auto_offset_reset: :latest,
                 offset_storage: :kafka
-              ],
-              leader: {false, nil}
+              ]
   end
 
   # ===================================================================
