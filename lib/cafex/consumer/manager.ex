@@ -63,6 +63,7 @@ defmodule Cafex.Consumer.Manager do
   alias Cafex.Consumer.OffsetManager
   alias Cafex.Consumer.Worker
   alias Cafex.Consumer.WorkerPartition
+  alias Cafex.Consumer.GroupManager
 
   @default_client_id "cafex"
   @default_group_manager :kafka
@@ -181,9 +182,9 @@ defmodule Cafex.Consumer.Manager do
     {group_manager, group_manager_cfg} =
     case Util.get_config(opts, cfg, :group_manager, @default_group_manager) do
       :kafka ->
-        {Cafex.Consumer.GroupManager.Kafka, kafka_group_cfg}
+        {GroupManager.Kafka, kafka_group_cfg}
       :zookeeper ->
-        {Cafex.Consumer.GroupManager.ZK, zk_cfg}
+        {GroupManager.ZK, zk_cfg}
     end
 
     group = Atom.to_string(name)
