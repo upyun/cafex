@@ -195,9 +195,15 @@ defmodule Cafex.Consumer.OffsetManager do
   end
 
   defp do_offset_commit(%{to_be_commit: to_be_commit} = state) do
-    partitions = Enum.map(to_be_commit, fn {partition, {offset, metadata}} ->
-      {partition, offset, metadata}
-    end)
+    partitions =
+      to_be_commit
+      |> Enum.map(fn {partition, {offset, metadata}} ->
+        {partition, offset, metadata}
+      end)
+      |> Enum.filter(fn
+        {_, offset, _} when is_integer(offset) -> true
+        _ -> false
+      end)
     do_offset_commit(partitions, state)
   end
 
