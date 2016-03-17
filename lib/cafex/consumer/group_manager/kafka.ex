@@ -84,8 +84,8 @@ defmodule Cafex.Consumer.GroupManager.Kafka do
   end
 
   @doc false
-  def rebalance(:timeout, %{leader?: true, topic: topic, members: members, partitions: partitions} = state) do
-    Logger.info "I am leader now"
+  def rebalance(:timeout, %{leader?: true, group_id: group, topic: topic, members: members, partitions: partitions} = state) do
+    Logger.info "I am the leader of the group [#{group}] now"
     rebalanced = LoadBalancer.rebalance(members, partitions)
     group_assignment = Enum.map(rebalanced, fn {member_id, assignment} ->
       member_assignment = {@protocol_version, [{topic, assignment}], nil}
