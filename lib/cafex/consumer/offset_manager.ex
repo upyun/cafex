@@ -5,13 +5,13 @@ defmodule Cafex.Consumer.OffsetManager do
 
   @max_buffers 50
   @interval 500
-  @offset_storage :kafka
-  @offset_reset :latest
+  @storage :kafka
+  @reset :latest
 
   defmodule State do
     @moduledoc false
     defstruct  conn: nil,  # coordinator connection
-               group_coordinator: nil,
+               coordinator: nil,
                partitions: nil,
                consumer_group_generation_id: nil,
                consumer_id: nil,
@@ -22,7 +22,7 @@ defmodule Cafex.Consumer.OffsetManager do
                timer: nil,
                max_buffers: 0,
                auto_commit: true,
-               offset_reset: :latest,
+               reset: :latest,
                storage: nil
   end
 
@@ -35,8 +35,8 @@ defmodule Cafex.Consumer.OffsetManager do
   # API
   # ===================================================================
 
-  def start_link(group_coordinator, partitions, group, topic, opts \\ []) do
-    GenServer.start_link __MODULE__, [group_coordinator, partitions, group, topic, opts]
+  def start_link(coordinator, partitions, group, topic, opts \\ []) do
+    GenServer.start_link __MODULE__, [coordinator, partitions, group, topic, opts]
   end
 
   def stop(pid) do
@@ -48,31 +48,31 @@ defmodule Cafex.Consumer.OffsetManager do
   end
 
   def offset_commit(pid, partition, offset, metadata \\ "") do
-    GenServer.call pid, {:offset_commit, partition, offset, metadata}
+    GenServer.call pid, {:commit, partition, offset, metadata}
   end
 
   def offset_fetch(pid, partition, leader_conn) do
-    GenServer.call pid, {:offset_fetch, partition, leader_conn}
+    GenServer.call pid, {:fetch, partition, leader_conn}
   end
 
   def offset_reset(pid, partition, leader_conn) do
-    GenServer.call pid, {:offset_reset, partition, leader_conn}
+    GenServer.call pid, {:reset, partition, leader_conn}
   end
 
   # ===================================================================
   # GenServer callbacks
   # ===================================================================
 
-  def init([group_coordinator, partitions, group, topic, opts]) do
-    state = %State{group_coordinator: group_coordinator,
+  def init([coordinator, partitions, group, topic, opts]) do
+    state = %State{coordinator: coordinator,
                    topic: topic,
                    consumer_group: group,
                    partitions: partitions,
                    auto_commit:  Keyword.get(opts, :auto_commit, true),
                    interval:     Keyword.get(opts, :interval) || @interval,
                    max_buffers:  Keyword.get(opts, :max_buffers) || @max_buffers,
-                   offset_reset: Keyword.get(opts, :offset_reset) || @offset_reset,
-                   storage:      Keyword.get(opts, :offset_storage) || @offset_storage}
+                   reset:        Keyword.get(opts, :offset_reset) || @reset,
+                   storage:      Keyword.get(opts, :offset_storage) || @storage}
                  |> start_conn
     {:ok, state}
   end
@@ -85,19 +85,19 @@ defmodule Cafex.Consumer.OffsetManager do
     {:reply, :ok, %{state | consumer_id: consumer_id, consumer_group_generation_id: generation_id}}
   end
 
-  def handle_call({:offset_commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
+  def handle_call({:commit, partition, _, _}, _from, %{partitions: partitions} = state) when partition >= partitions do
     {:reply, {:error, :unknown_partition}, state}
   end
-  def handle_call({:offset_commit, partition, offset, metadata}, from, state) do
-    state = schedule_offset_commit(from, partition, offset, metadata, state)
-    {:noreply, state}
+  def handle_call({:commit, partition, offset, metadata}, _from, state) do
+    {reply, state} = schedule_commit(partition, offset, metadata, state)
+    {:reply, reply, state}
   end
 
-  def handle_call({:offset_fetch, partition, _leader_conn}, _from, %{partitions: partitions} = state) when partition >= partitions do
+  def handle_call({:fetch, partition, _leader_conn}, _from, %{partitions: partitions} = state) when partition >= partitions do
     {:reply, {:error, :unknown_partition}, state}
   end
-  def handle_call({:offset_fetch, partition, leader_conn}, _from, %{topic: topic, offset_reset: strategy} = state) do
-    case do_offset_fetch(partition, state) do
+  def handle_call({:fetch, partition, leader_conn}, _from, %{topic: topic, reset: strategy} = state) do
+    case do_fetch(partition, state) do
       {:ok, {-1, _}} ->
         {:reply, get_offset(topic, partition, leader_conn, strategy), state}
       {:ok, _} = reply ->
@@ -109,7 +109,7 @@ defmodule Cafex.Consumer.OffsetManager do
     end
   end
 
-  def handle_call({:offset_reset, partition, leader_conn}, _from, %{topic: topic, offset_reset: strategy} = state) do
+  def handle_call({:reset, partition, leader_conn}, _from, %{topic: topic, reset: strategy} = state) do
     {:reply, get_offset(topic, partition, leader_conn, strategy), state}
   end
 
@@ -118,12 +118,12 @@ defmodule Cafex.Consumer.OffsetManager do
     {:noreply, %{state | timer: nil}}
   end
   def handle_info({:timeout, _timer, :do_commit}, state) do
-    do_offset_commit(state)
+    do_commit(state)
     {:noreply, %{state | to_be_commit: %{}, timer: nil}}
   end
 
   def terminate(_reason, state) do
-    do_offset_commit(state)
+    do_commit(state)
     close_conn(state)
     :ok
   end
@@ -132,7 +132,7 @@ defmodule Cafex.Consumer.OffsetManager do
   # Internal functions
   # ===================================================================
 
-  defp start_conn(%{group_coordinator: {host, port}} = state) do
+  defp start_conn(%{coordinator: {host, port}} = state) do
     {:ok, pid} = Connection.start_link(host, port)
     %{state | conn: pid}
   end
@@ -145,10 +145,10 @@ defmodule Cafex.Consumer.OffsetManager do
     %{state | conn: nil}
   end
 
-  defp do_offset_fetch(partition, %{conn: conn,
-                                    consumer_group: group,
-                                    topic: topic,
-                                    storage: storage}) do
+  defp do_fetch(partition, %{conn: conn,
+                             consumer_group: group,
+                             topic: topic,
+                             storage: storage}) do
     request = %OffsetFetch.Request{consumer_group: group,
                                    topics: [{topic, [partition]}]}
     request = case storage do
@@ -166,19 +166,17 @@ defmodule Cafex.Consumer.OffsetManager do
     end
   end
 
-  defp schedule_offset_commit(from, partition, offset, metadata, %{auto_commit: false} = state) do
-    reply = case do_offset_commit([{partition, offset, metadata}], state) do
+  defp schedule_commit(partition, offset, metadata, %{auto_commit: false} = state) do
+    reply = case do_commit([{partition, offset, metadata}], state) do
       {:ok, [{^partition, :no_error}]} -> :ok
       {:ok, [{^partition, error}]} -> {:error, error}
       {:error, _reason} = error -> error
     end
 
-    GenServer.reply(from, reply)
-
-    state
+    {reply, state}
   end
-  defp schedule_offset_commit(from, partition, offset, metadata, %{to_be_commit: to_be_commit,
-                                                                   max_buffers: max_buffers} = state) do
+  defp schedule_commit(partition, offset, metadata, %{to_be_commit: to_be_commit,
+                                                      max_buffers: max_buffers} = state) do
     to_be_commit = Map.put(to_be_commit, partition, {offset, metadata})
     state = %{state | to_be_commit: to_be_commit}
 
@@ -189,12 +187,10 @@ defmodule Cafex.Consumer.OffsetManager do
       start_timer(state)
     end
 
-    GenServer.reply(from, :ok)
-
-    state
+    {:ok, state}
   end
 
-  defp do_offset_commit(%{to_be_commit: to_be_commit} = state) do
+  defp do_commit(%{to_be_commit: to_be_commit} = state) do
     partitions =
       to_be_commit
       |> Enum.map(fn {partition, {offset, metadata}} ->
@@ -204,13 +200,13 @@ defmodule Cafex.Consumer.OffsetManager do
         {_, offset, _} when is_integer(offset) -> true
         _ -> false
       end)
-    do_offset_commit(partitions, state)
+    do_commit(partitions, state)
   end
 
-  defp do_offset_commit([], _state) do
+  defp do_commit([], _state) do
     {:ok, []}
   end
-  defp do_offset_commit(partitions, %{conn: conn, topic: topic, storage: storage} = state) do
+  defp do_commit(partitions, %{conn: conn, topic: topic, storage: storage} = state) do
     Logger.debug "Do offset commit: topic: #{inspect topic}, group: #{inspect state.consumer_group} partition offsets: #{inspect partitions},"
     request = Map.take(state, [:consumer_group,
                                :consumer_id,
