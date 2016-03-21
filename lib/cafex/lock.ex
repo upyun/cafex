@@ -2,7 +2,7 @@ defmodule Cafex.Lock do
   @moduledoc """
   A general, backend-pluggable lock implementation.
 
-  It's a FSM.
+  It's an FSM.
   """
 
   @behaviour :gen_fsm

@@ -226,7 +226,8 @@ defmodule Cafex.Protocol.Codec do
       {%Cafex.Protocol.Message{value: "hey", key: "key"}, <<>>}
   """
   def decode_message(<< offset :: 64-signed,
-                        msg_size :: 32-signed, msg :: size(msg_size)-binary,
+                        msg_size :: 32-signed,
+                        msg :: size(msg_size)-binary,
                         rest :: binary >>) do
     << _crc :: 32, magic :: 8, attributes :: 8, data :: binary >> = msg
     {key, data} = decode_bytes(data)
