@@ -135,6 +135,10 @@ defmodule Cafex.Lock do
     Logger.debug "lock_changed"
     {:next_state, :prepared, state_data, 0}
   end
+  def handle_info(:lock_changed, :locked, state_data) do
+    Logger.warn "The lock holder lose the lock"
+    {:stop, :lose_lock, state_data}
+  end
   def handle_info(info, state_name, state_data) do
     {:stop, {:bad_info, state_name, info}, state_data}
   end

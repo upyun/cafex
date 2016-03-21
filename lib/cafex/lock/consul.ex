@@ -40,7 +40,7 @@ defmodule Cafex.Lock.Consul do
     case Consul.Kv.put(path, "", acquire: Session.get(pid)) do
       true ->
         Logger.debug "Held the lock #{inspect self}"
-        {:ok, %{state | lock: true}}
+        {:ok, wait_change(%{state | lock: true})}
       false ->
         {:wait, wait_change(state)}
     end
