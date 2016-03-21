@@ -1,6 +1,7 @@
 defmodule Mix.Tasks.Cafex.Groups do
   use Mix.Task
   import Mix.Cafex
+  import Cafex.Consumer.Util
 
   alias Cafex.Connection
   alias Cafex.Kafka.Metadata
@@ -73,16 +74,17 @@ defmodule Mix.Tasks.Cafex.Groups do
                             client_host: client_host,
                             member_metadata: {metadata_version, subscriptions, metadata_user_data},
                             member_assignment: {assignment_version, partitions, assignment_user_data}} ->
+      info_msg "======================================================"
       info_msg "  MemberId: #{member_id}"
       info_msg "  ClientId: #{client_id}"
       info_msg "  ClientHost: #{client_host}"
       info_msg "  Member Metadata:"
       info_msg "    Version: #{metadata_version}"
       info_msg "    Subscriptions: #{inspect subscriptions}"
-      info_msg "    UserData: #{metadata_user_data}"
+      info_msg "    UserData:\n#{inspect decode_partitions(metadata_user_data), pretty: true, limit: 5000, char_lists: :as_lists}"
       info_msg "  Member Assignment:"
       info_msg "    Version: #{assignment_version}"
-      info_msg "    Partitions: #{inspect partitions}"
+      info_msg "    Partitions:\n#{inspect partitions, pretty: true, limit: 5000, char_lists: :as_lists}"
       info_msg "    UserData: #{assignment_user_data}"
       info_msg ""
     end)
