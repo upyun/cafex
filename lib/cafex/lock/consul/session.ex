@@ -1,8 +1,8 @@
-defmodule Cafex.Consul.Session do
+defmodule Cafex.Lock.Consul.Session do
   use GenServer
 
   alias Consul.Session
-  alias Cafex.Consul.Session.Heartbeat
+  alias Cafex.Lock.Consul.Heartbeat
 
   @default_behavior "release"
   @default_ttl 10 * 1000

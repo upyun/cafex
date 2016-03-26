@@ -4,7 +4,7 @@ defmodule Cafex.Lock.Consul do
   require Logger
 
   alias Cafex.Lock.Consul.Watch
-  alias Cafex.Consul.Session
+  alias Cafex.Lock.Consul.Session
 
   @lock_delay 0
   @ttl 10 * 1000
