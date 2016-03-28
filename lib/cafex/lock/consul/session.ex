@@ -1,10 +1,10 @@
-defmodule Cafex.Consul.Session do
+defmodule Cafex.Lock.Consul.Session do
   use GenServer
 
   alias Consul.Session
-  alias Cafex.Consul.Session.Heartbeat
+  alias Cafex.Lock.Consul.Heartbeat
 
-  @default_behavior "release"
+  @default_behavior :release
   @default_ttl 10 * 1000
 
   defmodule State do
@@ -25,8 +25,9 @@ defmodule Cafex.Consul.Session do
   end
 
   def init([opts]) do
-    lock_delay_ms = Keyword.get opts, :lock_delay_ms, 0
-    ttl_ms = Keyword.get opts, :ttl_ms, @default_ttl
+    behavior = Keyword.get(opts, :behavior, @default_behavior) |> to_string
+    lock_delay_ms = Keyword.get opts, :lock_delay, 0
+    ttl_ms = Keyword.get opts, :ttl, @default_ttl
     lock_delay = (lock_delay_ms |> div(1000) |> Integer.to_string) <> "s"
     ttl = (ttl_ms |> div(1000) |> Integer.to_string) <> "s"
 
@@ -35,7 +36,7 @@ defmodule Cafex.Consul.Session do
       :Node      => Keyword.get(opts, :node_name),
       :LockDelay => lock_delay,
       :TTL       => ttl,
-      :Behavior  => Keyword.get(opts, :behavior, @default_behavior)}
+      :Behavior  => behavior}
     |> Enum.filter(fn {_k, v} -> v end)
     |> Enum.into(%{})
     |> Session.create!

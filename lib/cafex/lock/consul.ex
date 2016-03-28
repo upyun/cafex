@@ -1,13 +1,14 @@
 defmodule Cafex.Lock.Consul do
+  @moduledoc """
+  Distributed Lock implementation with Consul
+  """
+
   use Cafex.Lock
 
   require Logger
 
   alias Cafex.Lock.Consul.Watch
-  alias Cafex.Consul.Session
-
-  @lock_delay 0
-  @ttl 10 * 1000
+  alias Cafex.Lock.Consul.Session
 
   defmodule State do
     @moduledoc false
@@ -18,6 +19,17 @@ defmodule Cafex.Lock.Consul do
   # API
   # ===================================================================
 
+  @doc """
+  ## Options
+
+  All this options are defined as the Session's request body,
+  see more [Session](https://www.consul.io/docs/agent/http/session.html)
+
+    * `:ttl`          Optional, based on millisecond, default is 10*1000
+    * `:lock_delay`   Optional, based on millisecond, default is 0, no delay
+    * `:behavior`     Optional, default is `:release`
+  """
+  @spec acquire(String.t, Keyword.t) :: {:ok, pid} | {:error, term}
   def acquire(path, opts \\ []) do
     Cafex.Lock.acquire __MODULE__, [path, opts], :infinity
   end
@@ -30,8 +42,8 @@ defmodule Cafex.Lock.Consul do
   # Cafex.Lock.Behaviour callbacks
   # ===================================================================
 
-  def init([path, _opts]) do
-    {:ok, pid} = Session.start_link()
+  def init([path, opts]) do
+    {:ok, pid} = Session.start_link(opts)
     path = Path.join ["service", "cafex", path, "lock"]
     {:ok, %State{session: pid, path: path}}
   end

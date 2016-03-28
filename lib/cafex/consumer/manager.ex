@@ -79,6 +79,10 @@ defmodule Cafex.Consumer.Manager do
   @type zookeeper_option :: {:servers, [server]} |
                             {:path, String.t} |
                             {:timeout, non_neg_integer}
+  @type consul :: [consul_option]
+  @type consul_option :: {:ttl, integer} |
+                         {:delay_lock, integer} |
+                         {:behavior, atom}
   @type option :: {:client_id, client_id} |
                   {:topic, String.t} |
                   {:handler, Cafex.Consumer.Worker.handler} |
@@ -93,7 +97,8 @@ defmodule Cafex.Consumer.Manager do
                   {:lock, :consul | :zookeeper} |
                   {:group_manager, :kafka | :zookeeper} |
                   {:offset_storage, :kafka | :zookeeper} |
-                  {:zooKeeper, zookeeper}
+                  {:zooKeeper, zookeeper} |
+                  {:consul, consul}
   defmodule State do
     @moduledoc false
     defstruct group: nil,
@@ -174,8 +179,10 @@ defmodule Cafex.Consumer.Manager do
       timeout: Util.get_config(opts, cfg, :group_session_timeout)
     ]
 
+    consul_cfg = Util.get_config(opts, cfg, :consul, [])
+
     lock_cfg = case lock do
-      :consul -> {Cafex.Lock.Consul, []}
+      :consul -> {Cafex.Lock.Consul, consul_cfg}
       :zookeeper -> {Cafex.Lock.ZK, zk_cfg}
     end
 

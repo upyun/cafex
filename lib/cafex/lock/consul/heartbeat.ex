@@ -1,4 +1,4 @@
-defmodule Cafex.Consul.Session.Heartbeat do
+defmodule Cafex.Lock.Consul.Heartbeat do
   @moduledoc false
   use GenServer
 
