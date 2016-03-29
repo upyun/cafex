@@ -15,6 +15,7 @@ defmodule Cafex do
   def start_producer(topic_name, opts \\ []) do
     Cafex.Supervisor.start_producer(topic_name, opts)
   end
+  defdelegate stop_producer(sup), to: Cafex.Supervisor
 
   @doc """
   Produce message to kafka server in the synchronous way.

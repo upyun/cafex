@@ -12,6 +12,8 @@ defmodule Cafex.Supervisor do
     Cafex.Producer.Supervisor.start_producer(topic, opts)
   end
 
+  defdelegate stop_producer(pid), to: Cafex.Producer.Supervisor
+
   def start_consumer(name, opts \\ []) do
     :ok = ensure_started(Cafex.Consumer.Supervisor, [])
     Cafex.Consumer.Supervisor.start_consumer(name, opts)

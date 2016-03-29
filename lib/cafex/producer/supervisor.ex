@@ -15,6 +15,8 @@ defmodule Cafex.Producer.Supervisor do
     Supervisor.start_child __MODULE__, [topic, opts]
   end
 
+  defdelegate stop_producer(pid), to: Cafex.Producer, as: :stop
+
   @doc false
   def init([]) do
     children = [
