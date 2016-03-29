@@ -84,6 +84,11 @@ defmodule Cafex.Producer do
     Cafex.Producer.Worker.async_produce(worker_pid, message)
   end
 
+  @spec stop(pid :: pid) :: :ok
+  def stop(pid) do
+    GenServer.call pid, :stop
+  end
+
   # ===================================================================
   #  GenServer callbacks
   # ===================================================================
@@ -121,6 +126,10 @@ defmodule Cafex.Producer do
   def handle_call({:get_worker, message}, _from, state) do
     {worker, state} = dispatch(message, state)
     {:reply, worker, state}
+  end
+
+  def handle_call(:stop, _from, state) do
+    {:stop, :normal, :ok, state}
   end
 
   def handle_info({:EXIT, pid, reason}, %{workers: workers} = state) do
