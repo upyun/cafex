@@ -106,7 +106,7 @@ defmodule Cafex.Consumer.Worker do
                           coordinator: coordinator} = state) do
     {:ok, conn} = Connection.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
-    {:ok, {offset, _}} = OffsetManager.offset_fetch(coordinator, partition, conn)
+    {:ok, {offset, _}} = OffsetManager.fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
                                         hwm_offset: offset,
                                         handler: handler,
@@ -253,7 +253,7 @@ defmodule Cafex.Consumer.Worker do
     message = %{message | topic: topic, partition: partition}
     data = case handler.consume(message, handler_data) do
       {:ok, data} ->
-        OffsetManager.offset_commit(coordinator, partition, offset + 1)
+        OffsetManager.commit(coordinator, partition, offset + 1)
         data
       {:nocommit, data} ->
         data
@@ -263,7 +263,7 @@ defmodule Cafex.Consumer.Worker do
   end
 
   defp offset_reset(%{coordinator: coordinator, partition: partition, conn: conn} = state) do
-    {:ok, {offset, _}} = OffsetManager.offset_reset(coordinator, partition, conn)
+    {:ok, {offset, _}} = OffsetManager.reset(coordinator, partition, conn)
     %{state | hwm_offset: offset}
   end
 end

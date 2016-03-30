@@ -47,15 +47,15 @@ defmodule Cafex.Consumer.OffsetManager do
     GenServer.call pid, {:update_generation_id, consumer_id, generation_id}
   end
 
-  def offset_commit(pid, partition, offset, metadata \\ "") do
+  def commit(pid, partition, offset, metadata \\ "") do
     GenServer.call pid, {:commit, partition, offset, metadata}
   end
 
-  def offset_fetch(pid, partition, leader_conn) do
+  def fetch(pid, partition, leader_conn) do
     GenServer.call pid, {:fetch, partition, leader_conn}
   end
 
-  def offset_reset(pid, partition, leader_conn) do
+  def reset(pid, partition, leader_conn) do
     GenServer.call pid, {:reset, partition, leader_conn}
   end
 
