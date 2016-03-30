@@ -5,7 +5,6 @@ defmodule Mix.Tasks.Cafex.Groups do
 
   alias Cafex.Connection
   alias Cafex.Kafka.Metadata
-  alias Cafex.Protocol.GroupCoordinator
   alias Cafex.Protocol.DescribeGroups
   alias Cafex.Protocol.ListGroups
 
@@ -51,10 +50,7 @@ defmodule Mix.Tasks.Cafex.Groups do
   end
 
   defp describe_group(group, host, port) do
-    {:ok, conn} = Connection.start(host, port)
-    request = %GroupCoordinator.Request{group_id: group}
-    {:ok, %{coordinator_host: host, coordinator_port: port}} = Connection.request(conn, request)
-    Connection.close(conn)
+    {host, port} = get_coordinator(group, host, port)
     {:ok, conn} = Connection.start(host, port)
     request = %DescribeGroups.Request{groups: [group]}
     {:ok, %{groups: [%{error: error,
@@ -63,6 +59,8 @@ defmodule Mix.Tasks.Cafex.Groups do
                       protocol_type: protocol_type,
                       protocol: protocol,
                       members: members}]}} = Connection.request(conn, request)
+    :ok = Connection.close(conn)
+
     info_msg "Group: #{group}"
     info_msg "Error: #{inspect error}"
     info_msg "State: #{state}"
@@ -94,6 +92,8 @@ defmodule Mix.Tasks.Cafex.Groups do
     {:ok, conn} = Connection.start(host, port)
     request = %ListGroups.Request{}
     {:ok, response} = Connection.request(conn, request)
+    :ok = Connection.close(conn)
+
     info_msg "Broker: #{id} [#{host}:#{port}]"
     case response do
       %{error: :no_error, groups: groups} ->

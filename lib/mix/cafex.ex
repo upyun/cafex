@@ -1,6 +1,9 @@
 defmodule Mix.Cafex do
   @moduledoc false
 
+  alias Cafex.Connection
+  alias Cafex.Protocol.GroupCoordinator
+
   def get_opts(opts, key, required \\ false, default \\ nil) do
     case Keyword.get(opts, key) do
       nil ->
@@ -35,6 +38,14 @@ defmodule Mix.Cafex do
 
   def ensure_started do
     {:ok, _} = Application.ensure_all_started(:cafex)
+  end
+
+  def get_coordinator(group, host, port) do
+    request = %GroupCoordinator.Request{group_id: group}
+    {:ok, conn} = Connection.start(host, port)
+    {:ok, %{coordinator_host: host, coordinator_port: port}} = Connection.request(conn, request)
+    :ok = Connection.close(conn)
+    {host, port}
   end
 
   # ===================================================================

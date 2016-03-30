@@ -4,7 +4,6 @@ defmodule Mix.Tasks.Cafex.OffsetFetch do
 
   alias Cafex.Protocol.Offset
   alias Cafex.Protocol.OffsetFetch
-  alias Cafex.Protocol.GroupCoordinator
 
   @shortdoc "Fetch consumer group offsets"
   @recursive true
@@ -41,10 +40,9 @@ defmodule Mix.Tasks.Cafex.OffsetFetch do
     %{servers: brokers} = parse_servers_url(broker)
     ensure_started
 
-    {:ok, %{brokers: brokers, topics: [%{partitions: partitions}]}} = Cafex.Kafka.Metadata.request(brokers, topic)
-    partition_ids = Enum.map(partitions, fn %{partition_id: id} ->
-        id
-    end)
+    {:ok, %{brokers: [%{host: host, port: port}|_]=brokers,
+            topics: [%{partitions: partitions}]}} = Cafex.Kafka.Metadata.request(brokers, topic)
+    partition_ids = Enum.map(partitions, fn %{partition_id: id} -> id end)
     brokers_map = Enum.map(brokers, fn %{node_id: node_id} = broker ->
       {node_id, broker}
     end) |> Enum.into(%{})
@@ -68,20 +66,18 @@ defmodule Mix.Tasks.Cafex.OffsetFetch do
     end)
     |> Enum.into(%{})
 
-    request = %GroupCoordinator.Request{group_id: group}
-    [%{host: host, port: port}|_] = brokers
-    {:ok, conn} = Connection.start(host, port)
-    {:ok, %{coordinator_host: host, coordinator_port: port}} = Connection.request(conn, request)
-    Connection.close(conn)
+    {host, port} = get_coordinator(group, host, port)
     {:ok, conn} = Connection.start(host, port)
     request = %OffsetFetch.Request{api_version: 1, consumer_group: group, topics: [{topic, partition_ids}]}
     {:ok, %{topics: [{^topic, partitions}]}} = Connection.request(conn, request)
+    :ok = Connection.close(conn)
 
     success_msg "Topic: #{topic}\n"
     partitions
     |> Enum.sort
     |> Enum.each(fn {id, offset, meta, error} ->
-      info_msg "partition: #{id}\t offset: #{offset}\thwmOffset: #{hwm[id]}\t meta: #{inspect meta}\t error: #{inspect error}"
+      info_msg "partition: #{id}\t offset: #{offset}\thwmOffset: #{hwm[id]}\t " <>
+               "lag: #{hwm[id] - offset}\t meta: #{inspect meta}\t error: #{inspect error}"
     end)
 
     :ok
