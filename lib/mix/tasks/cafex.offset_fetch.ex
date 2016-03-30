@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Cafex.Offset do
+defmodule Mix.Tasks.Cafex.OffsetFetch do
   use Mix.Task
   import Mix.Cafex
 
@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Cafex.Offset do
 
   ## Examples
 
-      mix cafex.offsetfetch -t topic -g group -b localhost:9091
+      mix cafex.offset_fetch -t topic -g group -b localhost:9091
 
   ## Command line options
 
