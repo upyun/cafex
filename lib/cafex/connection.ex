@@ -161,7 +161,7 @@ defmodule Cafex.Connection do
         {_, reply} = Cafex.Protocol.Codec.decode_response(decoder, data)
         {{:ok, reply}, state}
       {:error, reason} ->
-        Logger.error "Error sending request to broker: #{state.host}:#{state.port}"
+        Logger.error "Error sending request to broker: #{state.host}:#{state.port}: #{inspect reason}"
         {{:error, reason}, state}
     end
   end
