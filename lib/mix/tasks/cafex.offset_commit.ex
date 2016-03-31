@@ -16,7 +16,7 @@ defmodule Mix.Tasks.Cafex.OffsetCommit do
 
   ## Examples
 
-      mix cafex.offset_commit -t topic -g group -b localhost:9091 -o offset -p partition
+      mix cafex.offset_commit -t topic -g group -b localhost:9092 -o offset -p partition
 
   ## Command line options
 
@@ -88,7 +88,7 @@ defmodule Mix.Tasks.Cafex.OffsetCommit do
                                     topics: [{topic, [{partition, offset, ""}]}]}
     {:ok, %{topics: [{^topic, partition_errors}]}} = Connection.request(conn, request)
     case Enum.find(partition_errors, fn {_, e} -> e != :no_error end) do
-      nil -> success_msg "OffsetCommit topic '#{topic}' partition: #{partition} with offset: #{offset} success."
+      nil    -> success_msg "OffsetCommit topic '#{topic}' partition: #{partition} with offset: #{offset} success."
       {p, e} -> error_msg "OffsetCommit topic '#{topic}' partition: #{p} with offset: #{offset} error: #{inspect e}"
     end
 

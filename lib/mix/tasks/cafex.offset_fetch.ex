@@ -12,7 +12,7 @@ defmodule Mix.Tasks.Cafex.OffsetFetch do
 
   ## Examples
 
-      mix cafex.offset_fetch -t topic -g group -b localhost:9091
+      mix cafex.offset_fetch -t topic -g group -b localhost:9092
 
   ## Command line options
 
