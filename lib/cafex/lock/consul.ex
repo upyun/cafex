@@ -51,7 +51,7 @@ defmodule Cafex.Lock.Consul do
   def handle_acquire(%{path: path, session: pid} = state) do
     case Consul.Kv.put(path, "", acquire: Session.get(pid)) do
       true ->
-        Logger.debug "Held the lock #{inspect self}"
+        Logger.debug "Held the lock '#{path}'"
         {:ok, wait_change(%{state | lock: true})}
       false ->
         {:wait, wait_change(state)}
@@ -60,6 +60,7 @@ defmodule Cafex.Lock.Consul do
 
   def handle_release(%{lock: nil} = state), do: {:ok, state}
   def handle_release(%{path: path, session: pid} = state) do
+    Logger.debug "Release the lock '#{path}'"
     case Consul.Kv.put(path, "", release: Session.get(pid)) do
       true ->
         {:ok, %{state | lock: nil}}
