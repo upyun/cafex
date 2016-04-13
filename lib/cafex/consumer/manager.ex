@@ -274,15 +274,21 @@ defmodule Cafex.Consumer.Manager do
     {:noreply, state}
   end
   def handle_info({:EXIT, pid, reason}, %{workers: workers, trefs: trefs} = state) do
-    state = case WorkerPartition.partition(workers, pid) do
-      nil -> state
+    case WorkerPartition.partition(workers, pid) do
+      nil ->
+        {:noreply, state}
       partition ->
-        Logger.info "Worker #{inspect pid} for partition #{inspect partition} stopped with the reason: #{inspect reason}, try to restart it"
-        state = load_metadata(state)
-        tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
-        %{state | trefs: Map.put(trefs, partition, tref)}
+        Logger.info "Worker #{inspect pid} for partition #{inspect partition} " <>
+                    "stopped with the reason: #{inspect reason}, maybe restarted."
+        case reason do
+          :brutal_kill ->
+            {:stop, {:worker_brutal_kill, partition}, state}
+          _else ->
+            state = load_metadata(state)
+            tref = :erlang.start_timer(5000, self, {:restart_worker, partition})
+            {:noreply, %{state | trefs: Map.put(trefs, partition, tref)}}
+        end
     end
-    {:noreply, state}
   end
 
   # TODO handle worker lock timeout
