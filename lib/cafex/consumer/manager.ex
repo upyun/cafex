@@ -146,7 +146,7 @@ defmodule Cafex.Consumer.Manager do
   end
 
   def stop(pid) do
-    GenServer.call pid, :stop
+    GenServer.call pid, :stop, :infinity
   end
 
   # ===================================================================
