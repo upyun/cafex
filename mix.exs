@@ -7,6 +7,7 @@ defmodule Cafex.Mixfile do
      elixir: "~> 1.2",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     consolidate_protocols: Mix.env != :test,
      deps: deps,
      test_paths: test_paths(Mix.env),
 
