@@ -1,7 +1,7 @@
 %{"certifi": {:hex, :certifi, "0.4.0"},
   "consul": {:git, "https://github.com/zolazhou/consul-ex.git", "bc299a8492f3de97700d5118bd7b56ca11f565b4", []},
   "earmark": {:hex, :earmark, "0.1.17"},
-  "erlzk": {:hex, :erlzk, "0.6.1"},
+  "erlzk": {:hex, :erlzk, "0.6.2"},
   "ex_doc": {:hex, :ex_doc, "0.10.0"},
   "hackney": {:hex, :hackney, "1.5.2"},
   "httpoison": {:hex, :httpoison, "0.8.0"},
