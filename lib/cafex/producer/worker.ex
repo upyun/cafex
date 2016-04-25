@@ -19,6 +19,7 @@ defmodule Cafex.Producer.Worker do
 
   alias Cafex.Connection
   alias Cafex.Protocol.Produce.Request
+  alias Cafex.Protocol.Produce.Response
 
   # ===================================================================
   # API
@@ -164,12 +165,12 @@ defmodule Cafex.Producer.Worker do
                         messages: messages }
 
     case Connection.request(conn, request) do
-      {:ok, [{^topic, [%{error: :no_error, partition: ^partition}]}]} ->
+      {:ok, %Response{topics: [{^topic, [%{error: :no_error, partition: ^partition}]}]}} ->
         replies = Enum.map(message_pairs, fn {from, _} ->
           {from, :ok}
         end)
         {:ok, replies}
-      {:ok, [{^topic, [%{error: reason}]}]} ->
+      {:ok, %Response{topics: [{^topic, [%{error: reason}]}]}} ->
         replies = Enum.map(message_pairs, fn {from, _} ->
           {from, {:error, reason}}
         end)

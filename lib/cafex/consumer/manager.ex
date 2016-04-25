@@ -72,11 +72,9 @@ defmodule Cafex.Consumer.Manager do
   @typedoc "Options used by the `start_link/3` functions"
   @type options :: [option]
 
-  @type server :: {host :: String.t, port :: 0..65535}
-  @type broker :: server
   @type client_id :: String.t
   @type zookeeper :: [zookeeper_option]
-  @type zookeeper_option :: {:servers, [server]} |
+  @type zookeeper_option :: {:servers, [Cafex.server]} |
                             {:path, String.t} |
                             {:timeout, non_neg_integer}
   @type consul :: [consul_option]

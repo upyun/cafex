@@ -8,6 +8,7 @@ defmodule Cafex.Kafka.MetadataFsm do
 
   defmodule State do
     @moduledoc false
+    @type t :: %__MODULE__{}
     defstruct from: nil,
               request: nil,
               conn: nil,

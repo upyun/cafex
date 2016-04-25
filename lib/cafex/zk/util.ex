@@ -48,7 +48,7 @@ defmodule Cafex.ZK.Util do
     end
   end
 
-  @spec get_children(zk, path, watcher) :: {:ok, [child_node::String.t]} | {:error, term}
+  @spec get_children(zk, path, watcher | nil) :: {:ok, [child_node::String.t]} | {:error, term}
   def get_children(zk, path, watcher \\ nil) do
     case do_get_children(zk, path, watcher) do
       {:ok, children} -> {:ok, Enum.map(children, &(List.to_string &1))}
@@ -56,7 +56,7 @@ defmodule Cafex.ZK.Util do
     end
   end
 
-  @spec get_children_with_data(zk, path, watcher) :: {:ok, [{child_node :: String.t, data :: binary}]} | {:error, term}
+  @spec get_children_with_data(zk, path, watcher | nil) :: {:ok, [{child_node :: String.t, data :: binary}]} | {:error, term}
   def get_children_with_data(zk, path, watcher \\ nil) do
     case do_get_children(zk, path, watcher) do
       {:ok, children} ->
@@ -75,7 +75,7 @@ defmodule Cafex.ZK.Util do
     end
   end
 
-  @spec get_data(zk, path, watcher) :: {:ok, term} | {:error, term}
+  @spec get_data(zk, path, watcher | nil) :: {:ok, term} | {:error, term}
   def get_data(zk, path, watcher \\ nil) do
     case do_exists(zk, path, watcher) do
       {:ok, _stat} -> do_get_data(zk, path, watcher)

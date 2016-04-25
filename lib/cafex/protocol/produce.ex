@@ -53,7 +53,7 @@ defmodule Cafex.Protocol.Produce do
   def decode(data) when is_binary(data) do
     # TODO
     {response, _} = decode_array(data, &parse_response/1)
-    response
+    %Response{topics: response}
   end
 
   defp parse_response(<< topic_size :: 16-signed, topic :: size(topic_size)-binary, rest :: binary >>) do

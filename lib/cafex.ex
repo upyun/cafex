@@ -1,5 +1,7 @@
 defmodule Cafex do
 
+  @type server :: {host :: String.t, port :: 0..65535}
+  @type broker :: server
   @type client_id :: String.t
 
   def start_topic(name, brokers, opts \\ []) do

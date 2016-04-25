@@ -57,12 +57,7 @@ defmodule Cafex.Protocol do
       def has_response?(_), do: true
       def decoder(_), do: __MODULE__
       def api_key(_), do: unquote(api_key)
-      def api_version(_) do
-        case unquote(api_version) do
-          nil -> 0
-          version -> version
-        end
-      end
+      def api_version(_), do: unquote(api_version)
 
       defoverridable [has_response?: 1, api_version: 1, api_key: 1, decoder: 1]
     end

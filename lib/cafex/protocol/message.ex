@@ -19,7 +19,7 @@ defmodule Cafex.Protocol.Message do
                        metadata: term }
 
   @type tuple_message :: {topic :: String.t, partition :: integer, value :: binary} |
-                         {topic :: String.t, partition :: integer, value :: binary, key :: binary}
+                         {topic :: String.t, partition :: integer, value :: binary, key :: binary | nil}
 
   @spec from_tuple(tuple_message) :: Message.t
   def from_tuple({topic, partition, value}), do: from_tuple({topic, partition, value, nil})

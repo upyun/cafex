@@ -11,11 +11,9 @@ defmodule Cafex.Partitioner do
 
   use Behaviour
 
-  alias Cafex.Message
-
   @type state :: term
 
   defcallback init(partitions :: integer) :: {:ok, state} | {:error, term}
 
-  defcallback partition(message :: Message.t, state) :: {integer, state}
+  defcallback partition(message :: Cafex.Protocol.Message.t, state) :: {integer, state}
 end
