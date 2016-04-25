@@ -4,6 +4,7 @@ defmodule Cafex.Protocol.Produce.Test do
   alias Cafex.Protocol.Message
   alias Cafex.Protocol.Produce
   alias Cafex.Protocol.Produce.Request
+  alias Cafex.Protocol.Produce.Response
 
   test "create_request creates a valid payload with nil value" do
     expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,254,46,107,157,0,0,255,255,255,255,0,0,0,3,104,101,121>>
@@ -45,7 +46,7 @@ defmodule Cafex.Protocol.Produce.Test do
 
   test "decode_response correctly parses a valid response with single topic and partition" do
     response = << 1 :: 32, 3 :: 16, "bar" :: binary, 1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64 >>
-    expected_response = [{"bar", [%{error: :no_error, offset: 10, partition: 0}]}]
+    expected_response = %Response{topics: [{"bar", [%{error: :no_error, offset: 10, partition: 0}]}]}
     assert expected_response == Produce.decode(response)
   end
 
@@ -57,10 +58,10 @@ defmodule Cafex.Protocol.Produce.Test do
                   3 :: 16, "baz" :: binary,
                     2 :: 32, 0 :: 32, 0 :: 16, 30 :: 64,
                              1 :: 32, 0 :: 16, 40 :: 64 >>
-    expected_response = [{"bar", [%{error: :no_error, offset: 10, partition: 0},
+    expected_response = %Response{topics: [{"bar", [%{error: :no_error, offset: 10, partition: 0},
                                   %{error: :no_error, offset: 20, partition: 1}]},
                          {"baz", [%{error: :no_error, offset: 30, partition: 0},
-                                  %{error: :no_error, offset: 40, partition: 1}]}]
+                                  %{error: :no_error, offset: 40, partition: 1}]}]}
     assert expected_response == Produce.decode(response)
   end
 end
