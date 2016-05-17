@@ -176,18 +176,18 @@ defmodule Cafex.Consumer.OffsetManager do
     {reply, state}
   end
   defp schedule_commit(partition, offset, metadata, %{to_be_commit: to_be_commit,
-                                                      max_buffers: max_buffers} = state) do
+                                                      max_buffers: max_buffers,
+                                                      timer: timer} = state) do
     to_be_commit = Map.put(to_be_commit, partition, {offset, metadata})
     state = %{state | to_be_commit: to_be_commit}
 
-    state = if Map.size(to_be_commit) >= max_buffers do
+    if timer != :sent && Map.size(to_be_commit) >= max_buffers do
+      state = cancel_timer(state)
       send self, {:timeout, nil, :do_commit}
-      cancel_timer(state)
+      {:ok, %{state | timer: :sent}}
     else
-      start_timer(state)
+      {:ok, start_timer(state)}
     end
-
-    {:ok, state}
   end
 
   defp do_commit(%{to_be_commit: to_be_commit} = state) do
@@ -241,6 +241,7 @@ defmodule Cafex.Consumer.OffsetManager do
     end
   end
 
+  defp cancel_timer(%{timer: :sent} = state), do: %{state | timer: nil}
   defp cancel_timer(%{timer: nil} = state), do: state
   defp cancel_timer(%{timer: timer} = state) do
     :erlang.cancel_timer(timer)
