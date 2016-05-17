@@ -68,4 +68,25 @@ defmodule Cafex.Protocol.Fetch.Test do
               ]}]}]}
     assert expected_response == Fetch.decode(response)
   end
+
+  test "parse_response correctly parses a empty message set response" do
+    response = << 1 :: 32, 3 :: 16, "bar" :: binary,
+                  1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64,
+                  0 :: 32 >>
+
+    expected_response = %Response{topics: [{"bar", [
+      %{error: :no_error, hwm_offset: 10, partition: 0, messages: []}]}]}
+    assert expected_response == Fetch.decode(response)
+  end
+
+  test "parse_response incorrectly parses a partial message set response" do
+    response = << 1 :: 32, 3 :: 16, "bar" :: binary,
+                  1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64,
+                  28 :: 32,
+                    1 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8, -1 :: 32, 3 :: 32, "ba" :: binary >>
+
+    expected_response = %Response{topics: [{"bar", [
+      %{error: :no_error, hwm_offset: 10, partition: 0, messages: []}]}]}
+    assert expected_response == Fetch.decode(response)
+  end
 end
