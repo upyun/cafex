@@ -195,9 +195,14 @@ defmodule Cafex.Consumer.Worker do
     state = %{state | fetching: false}
     case response do
       {:ok, %{topics: [{^topic, [%{error: :no_error, messages: messages, hwm_offset: hwm_offset}]}]}} ->
+        if length(messages) == hwm_offset - offset do
+          Logger.debug "P:#{partition} Msg len: #{length(messages)}, #{offset}:#{hwm_offset}"
+        else
+          Logger.warn "P:#{partition} Msg len: #{length(messages)}, #{offset}:#{hwm_offset}"
+        end
         buffer = buffer ++ messages
         hwm_offset = case List.last(buffer) do
-          nil -> hwm_offset
+          nil -> offset
           msg -> msg.offset + 1
         end
         {:ok, %{state | buffer: buffer, hwm_offset: hwm_offset}}
