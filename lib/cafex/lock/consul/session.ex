@@ -51,7 +51,6 @@ defmodule Cafex.Lock.Consul.Session do
   end
 
   def handle_call(:stop, _from, %{id: id} = state) do
-    do_destroy(id)
     {:stop, :normal, :ok, state}
   end
 
