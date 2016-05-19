@@ -50,7 +50,7 @@ defmodule Cafex.Lock.Consul.Session do
     {:reply, id, state}
   end
 
-  def handle_call(:stop, _from, %{id: id} = state) do
+  def handle_call(:stop, _from, state) do
     {:stop, :normal, :ok, state}
   end
 
