@@ -1,8 +1,33 @@
-/_build
-/deps
 /doc
 /docker/docker-compose.yml
+/config/dev.exs
+/config/test.exs
+/config/integration.exs
+
+# Created by https://www.gitignore.io/api/elixir
+
+### Elixir ###
+/_build
+/cover
+/deps
 erl_crash.dump
 *.ez
-cscope.*
+
+# Created by https://www.gitignore.io/api/tags
+
+### Tags ###
+# Ignore tags created by etags, ctags, gtags (GNU global) and cscope
+TAGS
+.TAGS
+!TAGS/
 tags
+.tags
+!tags/
+gtags.files
+GTAGS
+GRTAGS
+GPATH
+cscope.files
+cscope.out
+cscope.in.out
+cscope.po.out
