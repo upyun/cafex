@@ -129,6 +129,13 @@ defmodule Cafex.Consumer.Worker do
     handle_fetch_response(response, state)
   end
 
+  def pause(:timeout, state) do
+    consume(state)
+  end
+  def pause({:kafka_response, response}, state) do
+    # TODO
+  end
+
   @doc false
   def handle_event(event, state_name, state_data) do
       {:stop, {:bad_event, state_name, event}, state_data}
@@ -231,40 +238,41 @@ defmodule Cafex.Consumer.Worker do
   end
 
   defp consume(%{pre_fetch_size: pre_fetch_size} = state) do
-    state = %{buffer: buffer} = do_consume(pre_fetch_size, state)
-    buffer_length = length(buffer)
-    cond do
-      buffer_length == 0->
-        {:next_state, :waiting_messages, fetch_messages(state)}
-      buffer_length <= pre_fetch_size ->
-        {:next_state, :consuming, fetch_messages(state), 0}
-      true ->
-        {:next_state, :consuming, state, 0}
+    case do_consume(pre_fetch_size, state) do
+      {:continue, %{buffer: buffer} = state} ->
+        buffer_length = length(buffer)
+        cond do
+          buffer_length == 0->
+            {:next_state, :waiting_messages, fetch_messages(state)}
+          buffer_length <= pre_fetch_size ->
+            {:next_state, :consuming, fetch_messages(state), 0}
+          true ->
+            {:next_state, :consuming, state, 0}
+        end
+      {:pause, timeout, state} ->
+        {:next_state, :pause, state, timeout}
     end
   end
 
-  defp do_consume(0, state), do: state
-  defp do_consume(_, %{buffer: []} = state), do: state
-  defp do_consume(c, %{buffer: [first|rest]} = state) do
-    state = handle_message(first, state)
-    do_consume(c - 1, %{state | buffer: rest})
-  end
+  defp do_consume(0, state), do: {:continue, state}
+  defp do_consume(_, %{buffer: []} = state), do: {:continue, state}
+  defp do_consume(c, %{buffer: [%{offset: offset} = first|rest], coordinator: coordinator,
+                                                         topic: topic,
+                                                         partition: partition,
+                                                         handler: handler,
+                                                         handler_data: data} = state) do
 
-  defp handle_message(%{offset: offset} = message, %{coordinator: coordinator,
-                                                     topic: topic,
-                                                     partition: partition,
-                                                     handler: handler,
-                                                     handler_data: handler_data} = state) do
-    message = %{message | topic: topic, partition: partition}
-    data = case handler.consume(message, handler_data) do
+    message = %{first | topic: topic, partition: partition}
+
+    case handler.consume(message, data) do
       {:ok, data} ->
         OffsetManager.commit(coordinator, partition, offset + 1)
-        data
+        do_consume(c - 1, %{state | buffer: rest, handler_data: data})
       {:nocommit, data} ->
-        data
+        do_consume(c - 1, %{state | buffer: rest, handler_data: data})
+      {:pause, timeout} ->
+        {:pause, timeout, state}
     end
-
-    %{state | handler_data: data}
   end
 
   defp offset_reset(%{coordinator: coordinator, partition: partition, conn: conn} = state) do
