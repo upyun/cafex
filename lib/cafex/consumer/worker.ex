@@ -99,12 +99,24 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
-  def prepare(:timeout, %{partition: partition,
+  def prepare(event, state) do
+    do_prepare(event, state, connection_mod: Connection)
+  end
+
+  if Mix.env == :test do
+    @doc false
+    def prepare(event, state, deps) do
+      do_prepare(event, state, deps)
+    end
+  end
+
+  defp do_prepare(:timeout, %{partition: partition,
                           broker: {host, port},
                           handler: {handler, args},
                           client_id: client_id,
-                          coordinator: coordinator} = state) do
-    {:ok, conn} = Connection.start_link(host, port, client_id: client_id)
+                          coordinator: coordinator} = state, deps) do
+    conn_mod = Keyword.get(deps, :connection_mod, Connection)
+    {:ok, conn} = conn_mod.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
     {:ok, {offset, _}} = OffsetManager.fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
@@ -114,11 +126,17 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
-  def consuming(:timeout, state) do
-    consume(state)
-  end
   def consuming({:kafka_response, response}, state) do
     handle_fetch_response(response, state)
+  end
+  def consuming(:timeout, state) do
+    consume(state, &fetch_messages/1)
+  end
+
+  if Mix.env == :test do
+    def consuming(:timeout, state, fetch_func) do
+      consume(state, fetch_func)
+    end
   end
 
   @doc false
@@ -129,11 +147,14 @@ defmodule Cafex.Consumer.Worker do
     handle_fetch_response(response, state)
   end
 
-  def pause(:timeout, state) do
-    consume(state)
-  end
-  def pause({:kafka_response, response}, state) do
-    # TODO
+  def pausing({:kafka_response, response}, state) do
+    # handle fetch response and continue pausing status
+    case handle_fetch_response(response, state) do
+      {:next_state, :consuming, state, _timeout} ->
+        {:next_state, :pausing, state}
+      {:stop, reason, state} ->
+        {:stop, reason, state}
+    end
   end
 
   @doc false
@@ -149,6 +170,11 @@ defmodule Cafex.Consumer.Worker do
   @doc false
   def handle_info({:lock, :ok, lock}, :waiting_lock, %{lock: {false, lock}} = state_data) do
     {:next_state, :prepare, %{state_data | lock: {true, lock}}, 0}
+  end
+
+  @doc false
+  def handle_info(:resume, :pausing, state) do
+    {:next_state, :consuming, state, 0}
   end
 
   @doc false
@@ -237,20 +263,21 @@ defmodule Cafex.Consumer.Worker do
     end
   end
 
-  defp consume(%{pre_fetch_size: pre_fetch_size} = state) do
+  defp consume(%{pre_fetch_size: pre_fetch_size} = state, fetch_func) do
     case do_consume(pre_fetch_size, state) do
       {:continue, %{buffer: buffer} = state} ->
         buffer_length = length(buffer)
         cond do
           buffer_length == 0->
-            {:next_state, :waiting_messages, fetch_messages(state)}
+            {:next_state, :waiting_messages, fetch_func.(state)}
           buffer_length <= pre_fetch_size ->
-            {:next_state, :consuming, fetch_messages(state), 0}
+            {:next_state, :consuming, fetch_func.(state), 0}
           true ->
             {:next_state, :consuming, state, 0}
         end
       {:pause, timeout, state} ->
-        {:next_state, :pause, state, timeout}
+        :erlang.send_after(timeout, self, :resume)
+        {:next_state, :pausing, state}
     end
   end
 
