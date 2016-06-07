@@ -9,11 +9,26 @@ defmodule Cafex.Lock do
 
   require Logger
 
-  @typedoc "`Cafex.Lock.Behaviour` module"
+  @typedoc "`Cafex.Lock` module"
   @type locker :: atom
 
   @typedoc "Arguments for `locker`"
   @type args :: [term]
+
+  @type state :: term
+
+  @callback init(term) :: {:ok, state} | {:error, term}
+
+  @doc """
+  Handle acquire callback
+
+  Non-blocking function, return `{:ok, state}` if acquired the lock.
+  Or `{:wait, state}` if waiting the lock, continue waiting in a asynchronized way(i.e. a process),
+  then if lock changed, a `:lock_changed` message will send to this process.
+  """
+  @callback handle_acquire(state) :: {:ok | :wait, state} | {:error, term}
+  @callback handle_release(state) :: {:ok, state} | {:error, term}
+  @callback terminate(state) :: :ok
 
   defmodule State do
     @moduledoc false
@@ -26,7 +41,7 @@ defmodule Cafex.Lock do
 
   defmacro __using__(_opts) do
     quote do
-      @behaviour Cafex.Lock.Behaviour
+      @behaviour unquote(__MODULE__)
       def init(_args), do: {:ok, []}
       # def handle_acquire(state), do: {:ok, state}
       def handle_release(state), do: {:ok, state}

@@ -1,6 +1,5 @@
 defmodule Cafex.Kafka.MetadataFsm do
   @moduledoc false
-  use Behaviour
 
   alias Cafex.Connection
 
@@ -18,8 +17,8 @@ defmodule Cafex.Kafka.MetadataFsm do
               dead_brokers: nil
   end
 
-  defcallback do_request(State.t) :: State.t
-  defcallback make_request(request :: term) :: request :: term
+  @callback do_request(State.t) :: State.t
+  @callback make_request(request :: term) :: request :: term
 
   defmacro __using__(_opts) do
     quote location: :keep do

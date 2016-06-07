@@ -11,21 +11,19 @@ defmodule Cafex.Consumer do
     * `terminate(state)`
   """
 
-  use Behaviour
-
   @type state :: term
   @type done :: :ok | :nocommit
 
-  defcallback init(args :: term) :: {:ok, state} | {:error, reason :: term}
+  @callback init(args :: term) :: {:ok, state} | {:error, reason :: term}
 
-  defcallback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state}
+  @callback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state}
 
-  defcallback terminate(state) :: :ok
+  @callback terminate(state) :: :ok
 
   @doc false
   defmacro __using__(_) do
     quote do
-      @behaviour Cafex.Consumer
+      @behaviour unquote(__MODULE__)
 
       def init(args), do: {:ok, args}
       def consume(_msg, state), do: {:ok, state}

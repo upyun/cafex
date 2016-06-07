@@ -3,8 +3,6 @@ defmodule Cafex.Protocol.Decoder do
   Kafka server response decoder implementation specification.
   """
 
-  use Behaviour
-
   @decoders [ Metadata,
               Produce,
               Fetch,
@@ -46,6 +44,6 @@ defmodule Cafex.Protocol.Decoder do
   @doc """
   Decode the response message in the Kafka server response
   """
-  defcallback decode(binary) :: response
+  @callback decode(binary) :: response
 
 end

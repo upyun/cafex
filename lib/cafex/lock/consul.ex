@@ -39,7 +39,7 @@ defmodule Cafex.Lock.Consul do
   end
 
   # ===================================================================
-  # Cafex.Lock.Behaviour callbacks
+  # Cafex.Lock callbacks
   # ===================================================================
 
   def init([path, opts]) do

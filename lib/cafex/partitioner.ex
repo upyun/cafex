@@ -9,11 +9,9 @@ defmodule Cafex.Partitioner do
     * `partition(message, state)`
   """
 
-  use Behaviour
-
   @type state :: term
 
-  defcallback init(partitions :: integer) :: {:ok, state} | {:error, term}
+  @callback init(partitions :: integer) :: {:ok, state} | {:error, term}
 
-  defcallback partition(message :: Cafex.Protocol.Message.t, state) :: {integer, state}
+  @callback partition(message :: Cafex.Protocol.Message.t, state) :: {integer, state}
 end

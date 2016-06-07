@@ -3,8 +3,6 @@ defmodule Cafex.Protocol.Codec do
   Kafka protocol request encoder and server response decoder implementation specification.
   """
 
-  use Behaviour
-
   alias Cafex.Protocol.Request
   alias Cafex.Protocol.Message
 
@@ -53,34 +51,34 @@ defmodule Cafex.Protocol.Codec do
   @doc """
   Decode the response message in the Kafka server response
   """
-  defcallback decode(binary) :: response
+  @callback decode(binary) :: response
 
   @doc """
   Encode the request
   """
-  defcallback encode(request) :: binary
+  @callback encode(request) :: binary
 
   @doc """
   Returen the api_key of a request.
   """
-  defcallback api_key(req :: Request.t) :: Cafex.Protocol.api_key
+  @callback api_key(req :: Request.t) :: Cafex.Protocol.api_key
 
   @doc """
   Return the api_version the request will use.
   """
-  defcallback api_version(req :: Request.t) :: Cafex.Protocol.api_version
+  @callback api_version(req :: Request.t) :: Cafex.Protocol.api_version
 
   @doc """
   Return whether the api request has a response.
 
   All request expecte server reply except the produce request with a `0` required_acks.
   """
-  defcallback has_response?(req :: Request.t) :: boolean
+  @callback has_response?(req :: Request.t) :: boolean
 
   @doc """
   Encode the request data into binary.
   """
-  defcallback encode(req :: Request.t) :: binary
+  @callback encode(req :: Request.t) :: binary
 
   def encode_request(client_id, correlation_id, request) do
     api_key = Request.api_key(request)
