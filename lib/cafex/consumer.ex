@@ -16,7 +16,7 @@ defmodule Cafex.Consumer do
 
   @callback init(args :: term) :: {:ok, state} | {:error, reason :: term}
 
-  @callback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state}
+  @callback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state} | {:pause, timeout}
 
   @callback terminate(state) :: :ok
 
