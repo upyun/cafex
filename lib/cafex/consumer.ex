@@ -18,7 +18,7 @@ defmodule Cafex.Consumer do
 
   defcallback init(args :: term) :: {:ok, state} | {:error, reason :: term}
 
-  defcallback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state}
+  defcallback consume(message :: Cafex.Protocol.Message.t, state) :: {done, state} | {:pause, timeout}
 
   defcallback terminate(state) :: :ok
 

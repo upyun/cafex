@@ -5,6 +5,14 @@ defmodule Cafex.Consumer.WorkerTest do
   alias Cafex.Consumer.Worker.State
   alias Cafex.Protocol.Message
 
+  defmodule GenericHandler do
+    use Cafex.Consumer
+
+    def consume(_msg, state) do
+      {:ok, state}
+    end
+  end
+
   defmodule PauseHandler do
     use Cafex.Consumer
 
@@ -106,6 +114,10 @@ defmodule Cafex.Consumer.WorkerTest do
     def handle_call({:fetch, _partition, _leader_conn}, _from, state) do
       {:reply, {:ok, {1, 1}}, state}
     end
+
+    def handle_call({:commit, _partition, _offset, _metadata}, _from, state) do
+      {:reply, :ok, state}
+    end
   end
 
   test "consumer worker fsm" do
@@ -122,6 +134,7 @@ defmodule Cafex.Consumer.WorkerTest do
 
     assert {:ok, :acquire_lock, %State{} = state, 0} = Worker.init(args)
 
+    state = %{state | connection_mod: Connection}
     next_state = Worker.acquire_lock(:timeout, state)
     assert {:next_state, :prepare, %State{lock: {true, _lock}} = state, 0} = next_state
 
@@ -131,12 +144,10 @@ defmodule Cafex.Consumer.WorkerTest do
     next_state = Worker.handle_info({:lock, :ok, lock}, :waiting_lock, state)
     assert {:next_state, :prepare, %State{lock: {true, ^lock}}, 0} = next_state
 
-    next_state = Worker.prepare(:timeout, state, connection_mod: Connection, offset_manager_mod: OffsetManager)
+    next_state = Worker.prepare(:timeout, state)
     assert {:next_state, :consuming, %State{buffer: []} = state, 0} = next_state
 
-    next_state = Worker.consuming(:timeout, state, fn state ->
-      %State{state | fetching: true}
-    end)
+    next_state = Worker.consuming(:timeout, %State{state | buffer: []})
     assert {:next_state, :waiting_messages, %State{buffer: [], fetching: true} = state} = next_state
 
     response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [], hwm_offset: 10}]}]}}
@@ -149,6 +160,21 @@ defmodule Cafex.Consumer.WorkerTest do
 
     next_state = Worker.consuming(:timeout, %State{state | buffer: [%Message{}]})
     assert {:next_state, :pausing, state} = next_state
+
+    next_state = Worker.consuming(:timeout, %State{state | fetching: false, buffer: [%Message{}], handler: GenericHandler})
+    assert {:next_state, :waiting_messages, %State{fetching: true} = state} = next_state
+
+    buffer = Enum.map(1..51, fn _ ->
+      %Message{}
+    end)
+    next_state = Worker.consuming(:timeout, %State{state | fetching: false, buffer: buffer, handler: GenericHandler})
+    assert {:next_state, :consuming, %State{fetching: true} = state, 0} = next_state
+
+    buffer = Enum.map(1..101, fn _ ->
+      %Message{}
+    end)
+    next_state = Worker.consuming(:timeout, %State{state | fetching: false, buffer: buffer, handler: GenericHandler})
+    assert {:next_state, :consuming, %State{fetching: false} = state, 0} = next_state
 
     response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [%Message{}], hwm_offset: 10}]}]}}
     next_state = Worker.pausing({:kafka_response, response}, state)

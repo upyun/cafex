@@ -35,7 +35,8 @@ defmodule Cafex.Consumer.Worker do
               pre_fetch_size: 50,
               coordinator: nil,
               handler: nil,
-              handler_data: nil
+              handler_data: nil,
+              connection_mod: Connection
   end
 
   alias Cafex.Connection
@@ -73,6 +74,7 @@ defmodule Cafex.Consumer.Worker do
                    max_wait_time: Keyword.get(opts, :max_wait_time) || @max_wait_time,
                    min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
                    max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
+    state = %{state | connection_mod: Connection}
     {:ok, :acquire_lock, state, 0}
   end
 
@@ -99,23 +101,12 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
-  def prepare(event, state) do
-    do_prepare(event, state, connection_mod: Connection)
-  end
-
-  if Mix.env == :test do
-    @doc false
-    def prepare(event, state, deps) do
-      do_prepare(event, state, deps)
-    end
-  end
-
-  defp do_prepare(:timeout, %{partition: partition,
+  def prepare(:timeout, %{partition: partition,
                           broker: {host, port},
                           handler: {handler, args},
                           client_id: client_id,
-                          coordinator: coordinator} = state, deps) do
-    conn_mod = Keyword.get(deps, :connection_mod, Connection)
+                          coordinator: coordinator,
+                          connection_mod: conn_mod} = state) do
     {:ok, conn} = conn_mod.start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
     {:ok, {offset, _}} = OffsetManager.fetch(coordinator, partition, conn)
@@ -130,13 +121,7 @@ defmodule Cafex.Consumer.Worker do
     handle_fetch_response(response, state)
   end
   def consuming(:timeout, state) do
-    consume(state, &fetch_messages/1)
-  end
-
-  if Mix.env == :test do
-    def consuming(:timeout, state, fetch_func) do
-      consume(state, fetch_func)
-    end
+    consume(state)
   end
 
   @doc false
@@ -263,15 +248,15 @@ defmodule Cafex.Consumer.Worker do
     end
   end
 
-  defp consume(%{pre_fetch_size: pre_fetch_size} = state, fetch_func) do
+  defp consume(%{pre_fetch_size: pre_fetch_size} = state) do
     case do_consume(pre_fetch_size, state) do
       {:continue, %{buffer: buffer} = state} ->
         buffer_length = length(buffer)
         cond do
           buffer_length == 0->
-            {:next_state, :waiting_messages, fetch_func.(state)}
+            {:next_state, :waiting_messages, fetch_messages(state)}
           buffer_length <= pre_fetch_size ->
-            {:next_state, :consuming, fetch_func.(state), 0}
+            {:next_state, :consuming, fetch_messages(state), 0}
           true ->
             {:next_state, :consuming, state, 0}
         end
@@ -283,11 +268,12 @@ defmodule Cafex.Consumer.Worker do
 
   defp do_consume(0, state), do: {:continue, state}
   defp do_consume(_, %{buffer: []} = state), do: {:continue, state}
-  defp do_consume(c, %{buffer: [%{offset: offset} = first|rest], coordinator: coordinator,
-                                                         topic: topic,
-                                                         partition: partition,
-                                                         handler: handler,
-                                                         handler_data: data} = state) do
+  defp do_consume(c, %{buffer: [%{offset: offset} = first|rest],
+                       coordinator: coordinator,
+                       topic: topic,
+                       partition: partition,
+                       handler: handler,
+                       handler_data: data} = state) do
 
     message = %{first | topic: topic, partition: partition}
 
