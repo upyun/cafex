@@ -74,7 +74,7 @@ defmodule Cafex.Consumer.Worker do
                    max_wait_time: Keyword.get(opts, :max_wait_time) || @max_wait_time,
                    min_bytes: Keyword.get(opts, :min_bytes) || @min_bytes,
                    max_bytes: Keyword.get(opts, :max_bytes) || @max_bytes}
-    state = %{state | connection_mod: Connection}
+                  |> conn_mod(Connection)
     {:ok, :acquire_lock, state, 0}
   end
 
@@ -105,9 +105,8 @@ defmodule Cafex.Consumer.Worker do
                           broker: {host, port},
                           handler: {handler, args},
                           client_id: client_id,
-                          coordinator: coordinator,
-                          connection_mod: conn_mod} = state) do
-    {:ok, conn} = conn_mod.start_link(host, port, client_id: client_id)
+                          coordinator: coordinator} = state) do
+    {:ok, conn} = conn_mod(state).start_link(host, port, client_id: client_id)
     {:ok, data} = handler.init(args)
     {:ok, {offset, _}} = OffsetManager.fetch(coordinator, partition, conn)
     {:next_state, :consuming, %{state | conn: conn,
@@ -181,8 +180,8 @@ defmodule Cafex.Consumer.Worker do
   # ===================================================================
 
   defp close_connection(%{conn: nil}), do: :ok
-  defp close_connection(%{conn: pid}) do
-    if Process.alive?(pid), do: Connection.close(pid)
+  defp close_connection(%{conn: pid} = state) do
+    if Process.alive?(pid), do: conn_mod(state).close(pid)
   end
 
   defp release_lock(%{lock: {_, nil}}), do: :ok
@@ -202,7 +201,7 @@ defmodule Cafex.Consumer.Worker do
     |> Map.put(:topics, [{topic, [{partition, offset, max_bytes}]}])
     |> (&(struct(Fetch.Request, &1))).()
 
-    Connection.async_request(conn, request, {:fsm, self})
+    conn_mod(state).async_request(conn, request, {:fsm, self})
     %{state | fetching: true}
   end
 
@@ -292,4 +291,7 @@ defmodule Cafex.Consumer.Worker do
     {:ok, {offset, _}} = OffsetManager.reset(coordinator, partition, conn)
     %{state | hwm_offset: offset}
   end
+
+  defp conn_mod(%State{} = state, mod), do: %State{state | connection_mod: mod}
+  defp conn_mod(%State{connection_mod: mod}), do: mod
 end
