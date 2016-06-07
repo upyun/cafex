@@ -116,6 +116,7 @@ defmodule Cafex.ConnectionTest do
     assert Process.alive?(pid)
     assert :ok == Connection.close(pid)
 
+    :timer.sleep(50)
     refute Process.alive?(pid)
 
     assert {:error, _reason} = Connection.start("unknown_host", 8080)
@@ -164,6 +165,7 @@ defmodule Cafex.ConnectionTest do
 
     assert :ok == Connection.close(pid)
 
+    :timer.sleep(50)
     refute Process.alive?(pid)
   end
 end
