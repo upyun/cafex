@@ -61,24 +61,19 @@ defmodule Cafex.Protocol.Codec do
   @doc """
   Returen the api_key of a request.
   """
-  @callback api_key(req :: Request.t) :: Cafex.Protocol.api_key
+  @callback api_key(request) :: Cafex.Protocol.api_key
 
   @doc """
   Return the api_version the request will use.
   """
-  @callback api_version(req :: Request.t) :: Cafex.Protocol.api_version
+  @callback api_version(request) :: Cafex.Protocol.api_version
 
   @doc """
   Return whether the api request has a response.
 
   All request expecte server reply except the produce request with a `0` required_acks.
   """
-  @callback has_response?(req :: Request.t) :: boolean
-
-  @doc """
-  Encode the request data into binary.
-  """
-  @callback encode(req :: Request.t) :: binary
+  @callback has_response?(request) :: boolean
 
   def encode_request(client_id, correlation_id, request) do
     api_key = Request.api_key(request)

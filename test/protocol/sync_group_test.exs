@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.SyncGroup.Test do
   alias Cafex.Protocol.SyncGroup.Request
   alias Cafex.Protocol.SyncGroup.Response
 
+  test "SyncGroup protocol implementation" do
+    req = %Request{}
+    assert SyncGroup.has_response?(req) == true
+    assert SyncGroup.decoder(req) == SyncGroup
+    assert SyncGroup.api_key(req) == Cafex.Protocol.api_key(:sync_group)
+    assert SyncGroup.api_version(req) == 0
+  end
+
   test "encode creates a valid non-leader SyncGroup request" do
     good_request = << 19 :: 16,
                       "cafex_test_consumer" :: binary,

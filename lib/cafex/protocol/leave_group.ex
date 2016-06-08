@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.LeaveGroup do
-  use Cafex.Protocol, api_key: 13
+  use Cafex.Protocol, api: :leave_group
 
   defrequest do
     field :group_id, binary

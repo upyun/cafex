@@ -5,6 +5,15 @@ defmodule Cafex.Protocol.OffsetFetch.Test do
   alias Cafex.Protocol.OffsetFetch.Request
   alias Cafex.Protocol.OffsetFetch.Response
 
+  test "OffsetFetch protocol implementation" do
+    req = %Request{}
+    assert OffsetFetch.has_response?(req) == true
+    assert OffsetFetch.decoder(req) == OffsetFetch
+    assert OffsetFetch.api_key(req) == Cafex.Protocol.api_key(:offset_fetch)
+    assert OffsetFetch.api_version(%{req | api_version: 0}) == 0
+    assert OffsetFetch.api_version(%{req | api_version: 1}) == 1
+  end
+
   test "create_request creates a valid offset commit message with default version 0" do
     offset_commit_request_default = %Request{ consumer_group: "bar",
                                               topics: [{"foo", [0]}] }

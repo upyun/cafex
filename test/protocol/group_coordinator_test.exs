@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.GroupCoordinator.Test do
   alias Cafex.Protocol.GroupCoordinator.Request
   alias Cafex.Protocol.GroupCoordinator.Response
 
+  test "GroupCoordinator protocol implementation" do
+    req = %Request{}
+    assert GroupCoordinator.has_response?(req) == true
+    assert GroupCoordinator.decoder(req) == GroupCoordinator
+    assert GroupCoordinator.api_key(req) == Cafex.Protocol.api_key(:group_coordinator)
+    assert GroupCoordinator.api_version(req) == 0
+  end
+
   test "create_request creates a valid consumer metadata request" do
     good_request = << 2 :: 16, "we" >>
 

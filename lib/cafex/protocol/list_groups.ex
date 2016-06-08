@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.ListGroups do
-  use Cafex.Protocol, api_key: 16
+  use Cafex.Protocol, api: :list_groups
 
   defresponse do
     field :groups, [group]
@@ -8,8 +8,6 @@ defmodule Cafex.Protocol.ListGroups do
     @type group :: {group_id :: binary,
                     protocol_type :: binary}
   end
-
-  def encode(_request), do: <<>>
 
   def decode(<< error_code :: 16-signed, rest :: binary >>) do
     {groups, _} = decode_array(rest, &parse_group/1)

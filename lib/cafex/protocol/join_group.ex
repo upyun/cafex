@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.JoinGroup do
-  use Cafex.Protocol, api_key: 11
+  use Cafex.Protocol, api: :join_group
   import Cafex.Protocol.CodecGroups
 
   defrequest do

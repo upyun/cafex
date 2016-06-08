@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.Metadata do
-  use Cafex.Protocol, api_key: 3
+  use Cafex.Protocol, api: :metadata
 
   defrequest do
     field :topics, [default: []], [binary]

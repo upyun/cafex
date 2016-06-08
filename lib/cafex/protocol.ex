@@ -33,33 +33,52 @@ defmodule Cafex.Protocol do
   @type api_key :: 0..16
   @type error :: Cafex.Protocol.Errors.t
 
+  @apis %{
+    :produce           => 0,
+    :fetch             => 1,
+    :offset            => 2,
+    :metadata          => 3,
+    :offset_commit     => 8,
+    :offset_fetch      => 9,
+    :group_coordinator => 10,
+    :join_group        => 11,
+    :heartbeat         => 12,
+    :leave_group       => 13,
+    :sync_group        => 14,
+    :describe_groups   => 15,
+    :list_groups       => 16,
+  }
+
   alias Cafex.Protocol.Request
+
+  for {key, value} <- @apis do
+    def api_key(unquote(key)), do: unquote(value)
+  end
 
   defmacro __using__(opts) do
     {opts, []} = Code.eval_quoted(opts, [], __CALLER__)
-    api_key = Keyword.get opts, :api_key
+    api = Keyword.get opts, :api
+
     api_version = Keyword.get opts, :api_version, 0
     mod = __CALLER__.module
 
-    if api_key == nil do
-      raise "To use #{inspect __MODULE__}, `api_key` must be set"
+    if api == nil do
+      raise CompileError, file: __CALLER__.file, line: __CALLER__.line, description: "To use #{inspect __MODULE__}, `api` must be set"
     end
 
-    Module.put_attribute mod, :api_key, api_key
+    if ! Map.has_key?(@apis, api) do
+      raise CompileError, file: __CALLER__.file, line: __CALLER__.line, description: "Unsupported api: #{api}"
+    end
+
+    Module.put_attribute mod, :api, api
     Module.put_attribute mod, :api_version, api_version
 
     quote do
-      import unquote(__MODULE__), only: [defrequest: 1, defresponse: 1]
+      import unquote(__MODULE__), only: [defrequest: 0, defrequest: 1, defresponse: 1]
       import Cafex.Protocol.Codec
       @behaviour Cafex.Protocol.Codec
       @before_compile unquote(__MODULE__)
 
-      def has_response?(_), do: true
-      def decoder(_), do: __MODULE__
-      def api_key(_), do: unquote(api_key)
-      def api_version(_), do: unquote(api_version)
-
-      defoverridable [has_response?: 1, api_version: 1, api_key: 1, decoder: 1]
     end
   end
 
@@ -71,17 +90,31 @@ defmodule Cafex.Protocol do
 
     quoted = []
 
-    quoted = quoted ++ if request == nil do
+    # ListGroups Request is empty, generate an empty request
+    quoted = quoted ++ if request != true do
       [quote do
         unquote(__MODULE__).defrequest
+        def encode(_request), do: <<>>
       end]
+    else
+      []
     end
 
     if response == nil do
-      raise "use #{__MODULE__} must call `defresponse`"
+      raise CompileError, file: __CALLER__.file, line: __CALLER__.line, description: "Use #{inspect __MODULE__} must call `defresponse`"
     end
 
-    quoted
+    api         = Module.get_attribute mod, :api
+    api_version = Module.get_attribute mod, :api_version
+
+    quoted ++ [quote do
+      def has_response?(%__MODULE__.Request{}), do: true
+      def decoder(%__MODULE__.Request{}), do: __MODULE__
+      def api_key(%__MODULE__.Request{}), do: unquote(__MODULE__).api_key(unquote(api))
+      def api_version(%__MODULE__.Request{}), do: unquote(api_version)
+
+      defoverridable [has_response?: 1, api_version: 1, decoder: 1]
+    end]
   end
 
   defmacro defrequest(opts \\ []) do

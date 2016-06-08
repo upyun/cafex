@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.Metadata.Test do
   alias Cafex.Protocol.Metadata.Request
   alias Cafex.Protocol.Metadata.Response
 
+  test "Metadata protocol implementation" do
+    req = %Request{}
+    assert Metadata.has_response?(req) == true
+    assert Metadata.decoder(req) == Metadata
+    assert Metadata.api_key(req) == Cafex.Protocol.api_key(:metadata)
+    assert Metadata.api_version(req) == 0
+  end
+
   test "create_request with no topics creates a valid metadata request" do
     good_request = << 0 :: 32 >>
     request = %Request{}

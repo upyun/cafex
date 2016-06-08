@@ -56,7 +56,7 @@ defmodule Cafex.ConnectionTest do
       case :gen_tcp.recv(sock, 0) do
         {:ok, bin} ->
           case bin do
-            << -1 :: 16-signed, _rest :: binary >> ->
+            << 1 :: 16-signed, _rest :: binary >> -> # fetch api
               # Trigger server to close tcp connection
               :gen_tcp.close(sock)
             <<_api_key :: 16-signed, _api_version :: 16, correlation_id :: 32, client_len :: 16, _client_id :: size(client_len)-binary, id :: 32, msg_len :: 16, msg :: size(msg_len)-binary>> ->
@@ -73,7 +73,7 @@ defmodule Cafex.ConnectionTest do
   end
 
   defmodule TestApi do
-    use Cafex.Protocol, api_key: 0
+    use Cafex.Protocol, api: :metadata
 
     defrequest do
       field :test_id, integer
@@ -91,7 +91,7 @@ defmodule Cafex.ConnectionTest do
   end
 
   defmodule BadApi do
-    use Cafex.Protocol, api_key: -1
+    use Cafex.Protocol, api: :fetch
     defrequest do
       field :test_id, integer
       field :test_msg, binary

@@ -6,6 +6,16 @@ defmodule Cafex.Protocol.Produce.Test do
   alias Cafex.Protocol.Produce.Request
   alias Cafex.Protocol.Produce.Response
 
+  test "Produce protocol implementation" do
+    req = %Request{}
+    assert Produce.has_response?(%{req | required_acks: 0}) == false
+    assert Produce.has_response?(%{req | required_acks: 1}) == true
+    assert Produce.has_response?(%{req | required_acks: 2}) == true
+    assert Produce.decoder(req) == Produce
+    assert Produce.api_key(req) == Cafex.Protocol.api_key(:produce)
+    assert Produce.api_version(req) == 0
+  end
+
   test "create_request creates a valid payload with nil value" do
     expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,254,46,107,157,0,0,255,255,255,255,0,0,0,3,104,101,121>>
 

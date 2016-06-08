@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.DescribeGroups.Test do
   alias Cafex.Protocol.DescribeGroups.Request
   alias Cafex.Protocol.DescribeGroups.Response
 
+  test "DescribeGroup protocol implementation" do
+    req = %Request{}
+    assert DescribeGroups.has_response?(req) == true
+    assert DescribeGroups.decoder(req) == DescribeGroups
+    assert DescribeGroups.api_key(req) == Cafex.Protocol.api_key(:describe_groups)
+    assert DescribeGroups.api_version(req) == 0
+  end
+
   test "encode creates a valid DescribeGroups request" do
     good_request = <<1 :: 32, 19 :: 16, "cafex_test_consumer" :: binary >>
 

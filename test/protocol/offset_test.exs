@@ -2,7 +2,16 @@ defmodule Cafex.Protocol.Offset.Test do
   use ExUnit.Case, async: true
 
   alias Cafex.Protocol.Offset
+  alias Cafex.Protocol.Offset.Request
   alias Cafex.Protocol.Offset.Response
+
+  test "Offset protocol implementation" do
+    req = %Request{}
+    assert Offset.has_response?(req) == true
+    assert Offset.decoder(req) == Offset
+    assert Offset.api_key(req) == Cafex.Protocol.api_key(:offset)
+    assert Offset.api_version(req) == 0
+  end
 
   test "decode correctly parses a valid response with an offset" do
     response = << 1 :: 32, 3 :: 16, "bar" :: binary, 1 :: 32, 0 :: 32, 0 :: 16, 1 :: 32, 10 :: 64 >>
