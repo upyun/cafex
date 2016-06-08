@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.LeaveGroup.Test do
   alias Cafex.Protocol.LeaveGroup.Request
   alias Cafex.Protocol.LeaveGroup.Response
 
+  test "LeaveGroup protocol implementation" do
+    req = %Request{}
+    assert LeaveGroup.has_response?(req) == true
+    assert LeaveGroup.decoder(req) == LeaveGroup
+    assert LeaveGroup.api_key(req) == Cafex.Protocol.api_key(:leave_group)
+    assert LeaveGroup.api_version(req) == 0
+  end
+
   test "encode a valid LeaveGroup request" do
     good_request = << 19 :: 16-signed,
                       "cafex_test_consumer" :: binary,

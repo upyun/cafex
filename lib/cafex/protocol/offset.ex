@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.Offset do
-  use Cafex.Protocol, api_key: 2
+  use Cafex.Protocol, api: :offset
 
   defrequest do
     field :replica_id, [default: -1], integer

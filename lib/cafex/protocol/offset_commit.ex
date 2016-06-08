@@ -6,7 +6,7 @@ defmodule Cafex.Protocol.OffsetCommit do
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetCommitRequest).
   """
 
-  use Cafex.Protocol, api_key: 8
+  use Cafex.Protocol, api: :offset_commit
 
   @default_consumer_group_generation_id -1
   @default_timestamp -1

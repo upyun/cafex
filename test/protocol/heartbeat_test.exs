@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.Heartbeat.Test do
   alias Cafex.Protocol.Heartbeat.Request
   alias Cafex.Protocol.Heartbeat.Response
 
+  test "Heartbeat protocol implementation" do
+    req = %Request{}
+    assert Heartbeat.has_response?(req) == true
+    assert Heartbeat.decoder(req) == Heartbeat
+    assert Heartbeat.api_key(req) == Cafex.Protocol.api_key(:heartbeat)
+    assert Heartbeat.api_version(req) == 0
+  end
+
   test "encode a valid Heartbeat request" do
     good_request = << 19 :: 16-signed,
                       "cafex_test_consumer" :: binary,

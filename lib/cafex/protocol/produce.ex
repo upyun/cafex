@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.Produce do
-  use Cafex.Protocol, api_key: 0
+  use Cafex.Protocol, api: :produce
 
   defrequest do
     field :required_acks, [default: 0], binary

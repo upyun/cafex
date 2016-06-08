@@ -6,6 +6,14 @@ defmodule Cafex.Protocol.Fetch.Test do
   alias Cafex.Protocol.Fetch.Request
   alias Cafex.Protocol.Fetch.Response
 
+  test "Fetch protocol implementation" do
+    req = %Request{}
+    assert Fetch.has_response?(req) == true
+    assert Fetch.decoder(req) == Fetch
+    assert Fetch.api_key(req) == Cafex.Protocol.api_key(:fetch)
+    assert Fetch.api_version(req) == 0
+  end
+
   test "encode creates a valid fetch request" do
     good_request = << -1 :: 32, 10 :: 32, 1 :: 32,
                       1 :: 32, 3 :: 16, "bar" :: binary,

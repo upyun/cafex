@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.Heartbeat do
-  use Cafex.Protocol, api_key: 12
+  use Cafex.Protocol, api: :heartbeat
 
   defrequest do
     field :group_id, binary

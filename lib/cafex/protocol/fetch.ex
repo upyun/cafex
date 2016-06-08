@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.Fetch do
-  use Cafex.Protocol, api_key: 1
+  use Cafex.Protocol, api: :fetch
 
   alias Cafex.Protocol.Message
 

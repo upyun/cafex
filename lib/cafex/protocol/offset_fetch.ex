@@ -6,7 +6,7 @@ defmodule Cafex.Protocol.OffsetFetch do
   To read more details, visit the [A Guide to The Kafka Protocol](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-OffsetFetchRequest).
   """
 
-  use Cafex.Protocol, api_key: 9
+  use Cafex.Protocol, api: :offset_fetch
 
   defrequest do
     field :api_version, [default: 0], api_version

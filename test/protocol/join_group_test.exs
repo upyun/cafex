@@ -5,6 +5,14 @@ defmodule Cafex.Protocol.JoinGroup.Test do
   alias Cafex.Protocol.JoinGroup.Request
   alias Cafex.Protocol.JoinGroup.Response
 
+  test "JoinGroup protocol implementation" do
+    req = %Request{}
+    assert JoinGroup.has_response?(req) == true
+    assert JoinGroup.decoder(req) == JoinGroup
+    assert JoinGroup.api_key(req) == Cafex.Protocol.api_key(:join_group)
+    assert JoinGroup.api_version(req) == 0
+  end
+
   test "encode creates a valid JoinGroup request" do
     good_request = << 19 :: 16,
                       "cafex_test_consumer" :: binary,

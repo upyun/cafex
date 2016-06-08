@@ -1,5 +1,5 @@
 defmodule Cafex.Protocol.GroupCoordinator do
-  use Cafex.Protocol, api_key: 10
+  use Cafex.Protocol, api: :group_coordinator
 
   defrequest do
     field :group_id, binary
