@@ -14,7 +14,8 @@ defmodule Cafex.Producer.Worker do
               # max_request_size: nil,
               linger_ms: 0,
               timer: nil,
-              timeout: 60000
+              timeout: 60000,
+              compression: nil
   end
 
   alias Cafex.Connection
@@ -52,6 +53,7 @@ defmodule Cafex.Producer.Worker do
     batch_num        = Keyword.get(opts, :batch_num)
     # max_request_size = Keyword.get(opts, :max_request_size)
     linger_ms        = Keyword.get(opts, :linger_ms)
+    compression      = Keyword.get(opts, :compression)
 
     state = %State{ broker: broker,
                     topic: topic,
@@ -61,7 +63,8 @@ defmodule Cafex.Producer.Worker do
                     batch_num: batch_num,
                     # max_request_size: max_request_size,
                     linger_ms: linger_ms,
-                    timeout: timeout }
+                    timeout: timeout,
+                    compression: compression}
 
     case Connection.start_link(host, port, client_id: client_id) do
       {:ok, pid} ->
@@ -154,6 +157,7 @@ defmodule Cafex.Producer.Worker do
                                partition: partition,
                                     acks: acks,
                                  timeout: timeout,
+                             compression: compression,
                                     conn: conn}) do
 
     messages = Enum.map(message_pairs, fn {_from, message} ->
@@ -162,6 +166,7 @@ defmodule Cafex.Producer.Worker do
 
     request = %Request{ required_acks: acks,
                         timeout: timeout,
+                        compression: compression,
                         messages: messages }
 
     case Connection.request(conn, request) do
