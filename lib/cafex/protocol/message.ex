@@ -5,8 +5,9 @@ defmodule Cafex.Protocol.Message do
             value: nil,
             key: nil,
             offset: 0,
-            magic_byte: 0,
+            magic_byte: 1,
             attributes: 0,
+            compression: nil,
             metadata: nil
 
   @type t :: %Message{ topic: binary,
@@ -16,7 +17,10 @@ defmodule Cafex.Protocol.Message do
                        offset: integer,
                        magic_byte: integer,
                        attributes: integer,
+                       compression: compression,
                        metadata: term }
+
+  @type compression :: nil | :gzip | :snappy
 
   @type tuple_message :: {topic :: String.t, partition :: integer, value :: binary} |
                          {topic :: String.t, partition :: integer, value :: binary, key :: binary | nil}

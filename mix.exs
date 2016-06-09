@@ -45,7 +45,8 @@ defmodule Cafex.Mixfile do
      {:ex_doc,  "~> 0.10.0", only: :dev},
      {:hackney, "~> 1.5", override: true},
      {:consul, github: "zolazhou/consul-ex"},
-     {:erlzk,   "~> 0.6.1"}]
+     {:erlzk,   "~> 0.6.1"},
+     {:snappy, git: "https://github.com/fdmanana/snappy-erlang-nif", only: [:dev, :test]}]
   end
 
   defp test_paths(:integration), do: ["integration_test"]

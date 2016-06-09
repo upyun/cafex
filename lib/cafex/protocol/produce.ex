@@ -1,10 +1,13 @@
 defmodule Cafex.Protocol.Produce do
   use Cafex.Protocol, api: :produce
 
+  alias Cafex.Protocol.Message
+
   defrequest do
     field :required_acks, [default: 0], binary
     field :timeout, integer
-    field :messages, [Cafex.Protocol.Message.t]
+    field :compression, [default: nil], Message.compression
+    field :messages, [Message.t]
   end
 
   defresponse do
@@ -19,21 +22,35 @@ defmodule Cafex.Protocol.Produce do
 
   def encode(%Request{required_acks: required_acks,
                       timeout: timeout,
+                      compression: compression_type,
                       messages: messages}) do
-    message_bytes = encode_messages(messages)
+    message_bytes = encode_messages(messages, compression_type)
 
     << required_acks :: 16-signed, timeout :: 32-signed,
         message_bytes :: binary >>
   end
 
-  def encode_messages(messages) do
+  defp encode_messages(messages, compression_type) do
     messages
     |> group_by_topic
     |> encode_array(fn {topic, partitions} ->
       [encode_string(topic),
        encode_array(partitions, fn {partition, messages} ->
-         msg_bin = encode_message_set(messages)
-         << partition :: 32-signed, byte_size(msg_bin) :: 32-signed, msg_bin :: binary >>
+         case compression_type do
+           nil ->
+             msg_bin = encode_message_set(messages)
+             << partition :: 32-signed, byte_size(msg_bin) :: 32-signed, msg_bin :: binary >>
+           type ->
+             msg_bin = messages
+               |> Enum.with_index
+               |> Enum.map(fn {message, index} ->
+                 %{message | offset: index}
+               end)
+               |> encode_message_set
+               |> Cafex.Protocol.Compression.compress(type)
+             bin = encode_message_set([%Message{topic: topic, partition: partition, value: msg_bin, compression: type}])
+             << partition :: 32-signed, byte_size(bin) :: 32-signed, bin :: binary >>
+         end
        end)]
     end)
     |> IO.iodata_to_binary

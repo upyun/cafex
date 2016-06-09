@@ -1,6 +1,5 @@
 defmodule Cafex.Protocol.DescribeGroups do
   use Cafex.Protocol, api: :describe_groups
-  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :groups, [group_id]
