@@ -36,24 +36,25 @@ defmodule Cafex.Protocol.Produce do
     |> encode_array(fn {topic, partitions} ->
       [encode_string(topic),
        encode_array(partitions, fn {partition, messages} ->
-         case compression_type do
-           nil ->
-             msg_bin = encode_message_set(messages)
-             << partition :: 32-signed, byte_size(msg_bin) :: 32-signed, msg_bin :: binary >>
-           type ->
-             msg_bin = messages
-               |> Enum.with_index
-               |> Enum.map(fn {message, index} ->
-                 %{message | offset: index}
-               end)
-               |> encode_message_set
-               |> Cafex.Protocol.Compression.compress(type)
-             bin = encode_message_set([%Message{topic: topic, partition: partition, value: msg_bin, compression: type}])
-             << partition :: 32-signed, byte_size(bin) :: 32-signed, bin :: binary >>
-         end
+         bin = maybe_compress(messages, compression_type) |> encode_message_set
+         << partition :: 32-signed, byte_size(bin) :: 32-signed, bin :: binary >>
        end)]
     end)
     |> IO.iodata_to_binary
+  end
+
+  defp maybe_compress(messages, nil), do: messages
+  defp maybe_compress(messages, compression_type) do
+    compressed =
+      messages
+      |> Enum.with_index
+      |> Enum.map(fn {message, index} ->
+        %Message{message | offset: index}
+      end)
+      |> encode_message_set
+      |> Cafex.Protocol.Compression.compress(compression_type)
+
+    [%Message{value: compressed, compression: compression_type}]
   end
 
   defp group_by_topic(messages) do
