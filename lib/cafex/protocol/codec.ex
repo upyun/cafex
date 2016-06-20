@@ -5,6 +5,7 @@ defmodule Cafex.Protocol.Codec do
 
   alias Cafex.Protocol.Request
   alias Cafex.Protocol.Message
+  alias Cafex.Protocol.Compression
 
   @decoders [ Metadata,
               Produce,
@@ -183,21 +184,21 @@ defmodule Cafex.Protocol.Codec do
   ## Examples
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 35, 184, 178, 24, 1, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: ""})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 106, 86, 37, 142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 183, 192, 252, 11, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 50, 255, 110, 30, 1, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
   """
   @spec encode_message(Message.t) :: binary
   def encode_message(%Message{magic_byte: magic_byte,
-                              attributes: attributes,
+                              compression: compression_type,
                               offset: offset,
                               key: key,
                               value: value}) do
-    sub = << magic_byte :: 8, attributes :: 8,
+    sub = << magic_byte :: 8, encode_attributes(compression_type) :: 8,
              encode_bytes(key) :: binary, encode_bytes(value) :: binary >>
     crc = :erlang.crc32(sub)
     msg = << crc :: 32, sub :: binary >>
@@ -210,13 +211,13 @@ defmodule Cafex.Protocol.Codec do
   ## Examples
 
       iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey"}, <<>>}
+      {%Cafex.Protocol.Message{value: "hey", magic_byte: 0}, <<>>}
 
       iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey", key: nil}, <<>>}
+      {%Cafex.Protocol.Message{value: "hey", key: nil, magic_byte: 0}, <<>>}
 
       iex> decode_message(<<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>)
-      {%Cafex.Protocol.Message{value: "hey", key: "key"}, <<>>}
+      {%Cafex.Protocol.Message{value: "hey", key: "key", magic_byte: 0}, <<>>}
   """
   def decode_message(<< offset :: 64-signed,
                         msg_size :: 32-signed,
@@ -225,11 +226,13 @@ defmodule Cafex.Protocol.Codec do
     << _crc :: 32, magic :: 8, attributes :: 8, data :: binary >> = msg
     {key, data} = decode_bytes(data)
     {value,  _} = decode_bytes(data)
-    {%Message{key: key,
-              value: value,
-              magic_byte: magic,
-              attributes: attributes,
-              offset: offset}, rest}
+    msgs = %Message{key: key,
+                   value: value,
+                   magic_byte: magic,
+                   attributes: attributes,
+                   compression: decode_attributes(<<attributes :: 8>>),
+                   offset: offset} |> decode_compressed_messages
+    {msgs, rest}
   end
   def decode_message(rest) do
     {nil, rest}
@@ -251,14 +254,138 @@ defmodule Cafex.Protocol.Codec do
     decode_message_set_item(data, [])
   end
 
+  @doc """
+  Encode group protocol metadata
+
+  ## Examples
+
+      iex> encode_group_protocol_metadata({0, ["topic_name"], nil})
+      <<0, 0, 0, 22, 0, 0, 0, 0, 0, 1, 0, 10, 116, 111, 112, 105, 99, 95, 110, 97, 109, 101, 255, 255, 255, 255>>
+
+      iex> encode_group_protocol_metadata({0, ["topic_name"], ""})
+      <<0, 0, 0, 22, 0, 0, 0, 0, 0, 1, 0, 10, 116, 111, 112, 105, 99, 95, 110, 97, 109, 101, 0, 0, 0, 0>>
+  """
+  def encode_group_protocol_metadata({version, subscription, user_data}) do
+    data = [<< version :: 16-signed >>,
+               encode_array(subscription, &encode_string/1),
+               encode_bytes(user_data)]
+           |> IO.iodata_to_binary
+   len = byte_size(data)
+   << len :: 32-signed, data :: binary>>
+  end
+
+  @doc """
+  Parse group protocol metadata
+
+  ## Examples
+
+      iex> parse_group_protocol_metadata(<<0, 0, 0, 0, 0, 1, 0, 10, 116, 111, 112, 105, 99, 95, 110, 97, 109, 101, 255, 255, 255, 255>>)
+      {0, ["topic_name"], nil}
+
+      iex> parse_group_protocol_metadata(<<0, 0, 0, 0, 0, 1, 0, 10, 116, 111, 112, 105, 99, 95, 110, 97, 109, 101, 0, 0, 0, 0>>)
+      {0, ["topic_name"], ""}
+  """
+  def parse_group_protocol_metadata(<< version :: 16-signed,
+                               rest :: binary >>) do
+    {subscription, rest} = decode_array(rest, &parse_topic_name/1)
+
+    {user_data, _} = decode_bytes(rest)
+
+    {version, subscription, user_data}
+  end
+
+  @doc """
+  Encode assignment
+
+  ## Examples
+
+      iex> encode_assignment({0, [{"topic", [0, 1, 2]}], ""})
+      <<0, 0, 0, 33, 0, 0, 0, 0, 0, 1, 0, 5, 116, 111, 112, 105, 99, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0>>
+
+      iex> encode_assignment({0, [{"topic", [3, 4]}], nil})
+      <<0, 0, 0, 29, 0, 0, 0, 0, 0, 1, 0, 5, 116, 111, 112, 105, 99, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 255, 255, 255, 255>>
+  """
+  def encode_assignment({version, partition_assignment, user_data}) do
+    data =
+    [<< version :: 16-signed >>,
+     encode_array(partition_assignment, &encode_partition_assignment/1),
+     encode_bytes(user_data)] |> IO.iodata_to_binary
+
+   len = byte_size(data)
+
+   << len :: 32-signed, data :: binary >>
+  end
+
+  @doc """
+  Parse assignment
+
+  ## Examples
+
+      iex> parse_assignment(<<0, 0, 0, 0, 0, 1, 0, 5, 116, 111, 112, 105, 99, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0>>)
+      {0, [{"topic", [0, 1, 2]}], ""}
+
+      iex> parse_assignment(<<0, 0, 0, 0, 0, 1, 0, 5, 116, 111, 112, 105, 99, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 255, 255, 255, 255>>)
+      {0, [{"topic", [3, 4]}], nil}
+  """
+  def parse_assignment(<< version :: 16-signed, rest :: binary >>) do
+    {partition_assignment, rest} = decode_array(rest, &parse_topic_partitions/1)
+
+    {user_data, _} = decode_bytes(rest)
+
+    {version, partition_assignment, user_data}
+  end
+
+  defp parse_topic_partitions(<< len :: 16-signed,
+                                 topic :: size(len)-binary,
+                                 rest :: binary >>) do
+    {partitions, rest} = decode_array(rest, &parse_partition/1)
+    {{topic, partitions}, rest}
+  end
+
+  defp parse_partition(<< partition :: 32-signed, rest :: binary >>), do: {partition, rest}
+
+  defp encode_partition_assignment({topic, partitions}) do
+    [encode_string(topic), encode_array(partitions, &(<< &1 :: 32-signed >>))]
+  end
+
+  defp parse_topic_name(<< len :: 16-signed,
+                           topic :: size(len)-binary,
+                           rest :: binary >>) do
+    {topic, rest}
+  end
+
   defp decode_message_set_item(<<>>, acc), do: Enum.reverse(acc)
   defp decode_message_set_item(data, acc) do
     {msg, rest} = decode_message(data)
     case msg do
       nil ->
         decode_message_set_item(<<>>, acc)
+      msgs when is_list(msgs) ->
+        decode_message_set_item(rest, Enum.reverse(msgs) ++ acc)
       msg ->
         decode_message_set_item(rest, [msg|acc])
     end
+  end
+
+  defp decode_compressed_messages(%Message{attributes: attributes, value: value}=msg) do
+    <<_ :: 4, _ :: 1, compression_type :: 3>> = <<attributes :: 8>>
+    case compression_type do
+      0 -> msg
+      type ->
+        Compression.decompress(value, decode_compression(type)) |> decode_message_set
+    end
+  end
+
+  defp encode_attributes(compression_type) do
+    << attr :: 8 >> = << 0 :: 4, 0 :: 1, encode_compression(compression_type) :: 3 >>
+    attr
+  end
+
+  defp decode_attributes(<< _ :: 4, _ :: 1, compression :: 3 >>), do: decode_compression(compression)
+
+  @compressions %{nil => 0, :gzip => 1, :snappy => 2}
+  for {type, code} <- @compressions do
+    defp encode_compression(unquote(type)), do: unquote(code)
+    defp decode_compression(unquote(code)), do: unquote(type)
   end
 end

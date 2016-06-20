@@ -1,6 +1,5 @@
 defmodule Cafex.Protocol.SyncGroup do
   use Cafex.Protocol, api: :sync_group
-  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :group_id, binary

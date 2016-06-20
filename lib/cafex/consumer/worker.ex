@@ -212,6 +212,14 @@ defmodule Cafex.Consumer.Worker do
     state = %{state | fetching: false}
     case response do
       {:ok, %{topics: [{^topic, [%{error: :no_error, messages: messages, hwm_offset: hwm_offset}]}]}} ->
+        messages =
+          messages
+          |> Enum.sort(fn (%{offset: off1}, %{offset: off2}) ->
+              off2 > off1
+            end)
+          |> Enum.filter(fn %{offset: msg_offset} ->
+          msg_offset >= offset
+        end)
         if length(messages) == hwm_offset - offset do
           Logger.debug "P:#{partition} Msg len: #{length(messages)}, #{offset}:#{hwm_offset}"
         else

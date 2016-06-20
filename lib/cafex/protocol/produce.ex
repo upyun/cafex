@@ -1,10 +1,13 @@
 defmodule Cafex.Protocol.Produce do
   use Cafex.Protocol, api: :produce
 
+  alias Cafex.Protocol.Message
+
   defrequest do
     field :required_acks, [default: 0], binary
     field :timeout, integer
-    field :messages, [Cafex.Protocol.Message.t]
+    field :compression, [default: nil], Message.compression
+    field :messages, [Message.t]
   end
 
   defresponse do
@@ -19,24 +22,39 @@ defmodule Cafex.Protocol.Produce do
 
   def encode(%Request{required_acks: required_acks,
                       timeout: timeout,
+                      compression: compression_type,
                       messages: messages}) do
-    message_bytes = encode_messages(messages)
+    message_bytes = encode_messages(messages, compression_type)
 
     << required_acks :: 16-signed, timeout :: 32-signed,
         message_bytes :: binary >>
   end
 
-  def encode_messages(messages) do
+  defp encode_messages(messages, compression_type) do
     messages
     |> group_by_topic
     |> encode_array(fn {topic, partitions} ->
       [encode_string(topic),
        encode_array(partitions, fn {partition, messages} ->
-         msg_bin = encode_message_set(messages)
-         << partition :: 32-signed, byte_size(msg_bin) :: 32-signed, msg_bin :: binary >>
+         bin = maybe_compress(messages, compression_type) |> encode_message_set
+         << partition :: 32-signed, byte_size(bin) :: 32-signed, bin :: binary >>
        end)]
     end)
     |> IO.iodata_to_binary
+  end
+
+  defp maybe_compress(messages, nil), do: messages
+  defp maybe_compress(messages, compression_type) do
+    compressed =
+      messages
+      |> Enum.with_index
+      |> Enum.map(fn {message, index} ->
+        %Message{message | offset: index}
+      end)
+      |> encode_message_set
+      |> Cafex.Protocol.Compression.compress(compression_type)
+
+    [%Message{value: compressed, compression: compression_type}]
   end
 
   defp group_by_topic(messages) do

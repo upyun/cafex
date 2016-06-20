@@ -1,6 +1,5 @@
 defmodule Cafex.Protocol.JoinGroup do
   use Cafex.Protocol, api: :join_group
-  import Cafex.Protocol.CodecGroups
 
   defrequest do
     field :group_id, binary

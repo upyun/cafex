@@ -102,6 +102,7 @@ defmodule Cafex.Producer do
     batch_num        = Keyword.get(opts, :batch_num, @default_batch_num)
     # max_request_size = Keyword.get(opts, :max_request_size, @default_max_request_size)
     linger_ms        = Keyword.get(opts, :linger_ms, @default_linger_ms)
+    compression      = Keyword.get(opts, :compression)
 
     state = %State{topic_name: topic_name,
                    feed_brokers: brokers,
@@ -112,7 +113,8 @@ defmodule Cafex.Producer do
                      batch_num: batch_num,
                      # max_request_size: max_request_size,
                      linger_ms: linger_ms,
-                     timeout: @default_timeout
+                     timeout: @default_timeout,
+                     compression: compression
                    ]} |> load_metadata
                       |> start_workers
 

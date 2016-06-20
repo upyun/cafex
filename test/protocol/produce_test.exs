@@ -16,40 +16,151 @@ defmodule Cafex.Protocol.Produce.Test do
     assert Produce.api_version(req) == 0
   end
 
-  test "create_request creates a valid payload with nil value" do
-    expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,254,46,107,157,0,0,255,255,255,255,0,0,0,3,104,101,121>>
+  test "create_request creates a valid payload with nil key" do
+    required_acks = 1
+    timeout = 10
+    topic = "food"
+    value = "hey"
+    key = nil
+    partition = 0
 
-    request = %Request{ required_acks: 1,
-                        timeout: 10,
+    sub = << 1 :: 8, 0 :: 8, -1 :: 32, byte_size(value) :: 32, value :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(msg_bin) :: 32,
+                          msg_bin :: binary >>
+
+    request = %Request{ required_acks: required_acks,
+                        timeout: timeout,
                         messages: [
-                          Message.from_tuple({"food", 0, "hey", nil})
+                          Message.from_tuple({topic, partition, value, key})
                         ] }
 
     assert expected_request == Produce.encode(request)
   end
 
-  test "create_request creates a valid payload with empty string value" do
-    expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,29,0,0,0,0,0,0,0,0,0,0,0,17,106,86,37,142,0,0,0,0,0,0,0,0,0,3,104,101,121>>
+  test "create_request creates a valid payload with empty string key" do
+    required_acks = 1
+    timeout = 10
+    topic = "food"
+    partition = 0
+    value = "hey"
+    key = ""
 
-    request = %Request{ required_acks: 1,
-                        timeout: 10,
+    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value) :: 32, value :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(msg_bin) :: 32,
+                          msg_bin :: binary >>
+
+    request = %Request{ required_acks: required_acks,
+                        timeout: timeout,
                         messages: [
-                          Message.from_tuple({"food", 0, "hey", ""})
+                          Message.from_tuple({topic, partition, value, key})
                         ] }
 
     assert expected_request == Produce.encode(request)
   end
 
   test "create_request correctly batches multiple request messages" do
-    expected_request = <<0,1,0,0,0,10,0,0,0,1,0,4,102,111,111,100,0,0,0,1,0,0,0,0,0,0,0,88,0,0,0,0,0,0,0,0,0,0,0,17,106,86,37,142,0,0,0,0,0,0,0,0,0,3,104,101,121,0,0,0,0,0,0,0,0,0,0,0,16,225,27,42,82,0,0,0,0,0,0,0,0,0,2,104,105,0,0,0,0,0,0,0,0,0,0,0,19,119,44,195,207,0,0,0,0,0,0,0,0,0,5,104,101,108,108,111>>
+    required_acks = 1
+    timeout = 10
+    topic = "food"
+    partition = 0
+    value1 = "{\"id\":1, \"name\": \"user1\"}"
+    value2 = "{\"id\":2, \"name\": \"user2\"}"
+    value3 = "{\"id\":3, \"name\": \"user3\"}"
+    key = ""
 
-    request = %Request{ required_acks: 1,
-                        timeout: 10,
+    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value1) :: 32, value1 :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+
+    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value2) :: 32, value2 :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = msg_bin <> <<1 :: 64, byte_size(msg) :: 32, msg :: binary >>
+
+    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value3) :: 32, value3 :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    orig_msg_bin = msg_bin <> <<2 :: 64, byte_size(msg) :: 32, msg :: binary >>
+
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(orig_msg_bin) :: 32,
+                          orig_msg_bin :: binary >>
+
+    request = %Request{ required_acks: required_acks,
+                        timeout: timeout,
                         messages: [
-                          Message.from_tuple({"food", 0, "hey", ""}),
-                          Message.from_tuple({"food", 0, "hi", ""}),
-                          Message.from_tuple({"food", 0, "hello", ""})
+                          %Message{topic: topic, partition: partition, key: key, value: value1, offset: 0},
+                          %Message{topic: topic, partition: partition, key: key, value: value2, offset: 1},
+                          %Message{topic: topic, partition: partition, key: key, value: value3, offset: 2},
                         ] }
+
+    assert expected_request == Produce.encode(request)
+
+    compressed = :zlib.gzip(orig_msg_bin)
+
+    sub = << 1 :: 8, 1 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(msg_bin) :: 32,
+                          msg_bin :: binary >>
+
+    request = %{ request | compression: :gzip }
+
+    assert expected_request == Produce.encode(request)
+
+    {:ok, compressed} = :snappy.compress(orig_msg_bin)
+    sub = << 1 :: 8, 2 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(msg_bin) :: 32,
+                          msg_bin :: binary >>
+
+    request = %{ request | compression: :snappy }
 
     assert expected_request == Produce.encode(request)
   end
