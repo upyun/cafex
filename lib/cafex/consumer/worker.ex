@@ -220,9 +220,7 @@ defmodule Cafex.Consumer.Worker do
           |> Enum.filter(fn %{offset: msg_offset} ->
           msg_offset >= offset
         end)
-        if length(messages) == hwm_offset - offset do
-          Logger.debug "P:#{partition} Msg len: #{length(messages)}, #{offset}:#{hwm_offset}"
-        else
+        if length(messages) != hwm_offset - offset do
           Logger.warn "P:#{partition} Msg len: #{length(messages)}, #{offset}:#{hwm_offset}"
         end
         buffer = buffer ++ messages
