@@ -142,7 +142,7 @@ config :cafex, :myconsumer,
 
 ## TODO
 
-* Simple Consumer
+* Support kafka 0.10.x.x
 * Add tests
 
 [kafka]: http://kafka.apache.org
