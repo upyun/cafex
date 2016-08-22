@@ -41,12 +41,11 @@ defmodule Cafex.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    [{:earmark, "~> 0.1.17", only: :dev},
-     {:ex_doc,  "~> 0.10.0", only: :dev},
-     {:hackney, "~> 1.5", override: true},
+    [{:earmark, "~> 1.0.1", only: :dev},
+     {:ex_doc,  "~> 0.13.0", only: :dev},
      {:consul, github: "zolazhou/consul-ex"},
-     {:erlzk,   "~> 0.6.1"},
-     {:snappy, git: "https://github.com/fdmanana/snappy-erlang-nif", only: [:dev, :test]}]
+     {:erlzk,   "~> 0.6.3"},
+     {:snappy, "~> 1.1", only: [:dev, :test]}]
   end
 
   defp test_paths(:integration), do: ["integration_test"]
