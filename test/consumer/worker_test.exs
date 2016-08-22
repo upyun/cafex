@@ -154,7 +154,7 @@ defmodule Cafex.Consumer.WorkerTest do
     next_state = Worker.consuming({:kafka_response, response}, state)
     assert {:next_state, :consuming, %State{buffer: []} = state, 1000} = next_state
 
-    response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [%Message{}], hwm_offset: 10}]}]}}
+    response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [%Message{offset: 11}], hwm_offset: 10}]}]}}
     next_state = Worker.consuming({:kafka_response, response}, state)
     assert {:next_state, :consuming, %State{buffer: [_msg]} = state, 0} = next_state
 
@@ -193,7 +193,7 @@ defmodule Cafex.Consumer.WorkerTest do
     next_state = Worker.waiting_messages({:kafka_response, response}, %State{state | buffer: [%Message{}]})
     assert {:next_state, :consuming, %State{buffer: [_msg]} = state, 0} = next_state
 
-    response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [%Message{}], hwm_offset: 10}]}]}}
+    response = {:ok, %{topics: [{"topic", [%{error: :no_error, messages: [%Message{offset: 11}], hwm_offset: 10}]}]}}
     next_state =  Worker.waiting_messages({:kafka_response, response}, state)
     assert {:next_state, :consuming, %State{buffer: [_msg, _msg2]} = state, 0} = next_state
 
