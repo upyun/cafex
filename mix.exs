@@ -5,6 +5,7 @@ defmodule Cafex.Mixfile do
     [app: :cafex,
      version: "0.0.3",
      elixir: "~> 1.2",
+     description: description,
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      consolidate_protocols: Mix.env != :test,
@@ -20,6 +21,7 @@ defmodule Cafex.Mixfile do
      source_url: "https://github.com/upyun/cafex",
      homepage_url: "http://cafex.github.com/",
      docs: [extras: ["README.md"]],
+     package: package,
      dialyzer: [flags: ["-Werror_handling", "-Wrace_conditions", "-Wunderspecs"]]]
   end
 
@@ -68,4 +70,17 @@ defmodule Cafex.Mixfile do
 
   defp test_integration(args), do: env_run(:integration, args)
   defp test_default(args), do: env_run(:test, args)
+
+  defp package do
+    [files: ~w(lib config/config.exs integration_test test LICENSE mix.exs mix.lock README.md),
+     licenses: ["Apache 2.0"],
+     maintainers: ["Belltoy Zhao"],
+     links: %{"GitHub" => "https://github.com/upyun/cafex"}]
+  end
+
+  defp description do
+    """
+    Cafex is a pure Elixir implementation of Kafka client.
+    """
+  end
 end
