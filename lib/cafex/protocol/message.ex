@@ -7,8 +7,10 @@ defmodule Cafex.Protocol.Message do
             offset: 0,
             magic_byte: 1,
             attributes: 0,
+            timestamp_type: :create_time,
             compression: nil,
-            metadata: nil
+            metadata: nil,
+            timestamp: 0
 
   @type t :: %Message{ topic: binary,
                        partition: integer,
@@ -18,7 +20,9 @@ defmodule Cafex.Protocol.Message do
                        magic_byte: integer,
                        attributes: integer,
                        compression: compression,
-                       metadata: term }
+                       metadata: term,
+                       timestamp: integer,
+                       timestamp_type: atom }
 
   @type compression :: nil | :gzip | :snappy
 

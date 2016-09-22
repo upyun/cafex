@@ -47,7 +47,7 @@ defmodule Cafex.Protocol.Produce.Test do
     assert expected_request == Produce.encode(request)
   end
 
-  test "create_request creates a valid payload with empty string key" do
+  test "create_request creates a valid payload with empty string key with message version 0" do
     required_acks = 1
     timeout = 10
     topic = "food"
@@ -55,7 +55,7 @@ defmodule Cafex.Protocol.Produce.Test do
     value = "hey"
     key = ""
 
-    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value) :: 32, value :: binary>>
+    sub = << 0 :: 8, 0 :: 8, 0 :: 32, byte_size(value) :: 32, value :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
@@ -72,7 +72,48 @@ defmodule Cafex.Protocol.Produce.Test do
     request = %Request{ required_acks: required_acks,
                         timeout: timeout,
                         messages: [
-                          Message.from_tuple({topic, partition, value, key})
+                          # Message.from_tuple({topic, partition, value, key})
+                          %Message{topic: topic,
+                                   partition: partition,
+                                   key: key,
+                                   value: value,
+                                   magic_byte: 0}
+                        ] }
+
+    assert expected_request == Produce.encode(request)
+  end
+
+  test "create_request creates a valid payload with empty string key with message version 1" do
+    required_acks = 1
+    timeout = 10
+    topic = "food"
+    partition = 0
+    value = "hey"
+    key = ""
+
+    sub = << 1 :: 8, 0 :: 4, 0 :: 1, 0 :: 3, 0 :: 64 , 0 :: 32, byte_size(value) :: 32, value :: binary>>
+    crc = :erlang.crc32(sub)
+    msg = <<crc :: 32,  sub :: binary>>
+    msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
+    expected_request = << 1 :: 16,
+                          10 :: 32,
+                          1 :: 32,
+                          byte_size(topic) :: 16,
+                          topic :: binary,
+                          1 :: 32,
+                          partition :: 32,
+                          byte_size(msg_bin) :: 32,
+                          msg_bin :: binary >>
+
+    request = %Request{ required_acks: required_acks,
+                        timeout: timeout,
+                        messages: [
+                          %Message{topic: topic,
+                                   partition: partition,
+                                   key: key,
+                                   value: value,
+                                   magic_byte: 1,
+                                   timestamp_type: :create_time}
                         ] }
 
     assert expected_request == Produce.encode(request)

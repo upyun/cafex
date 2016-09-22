@@ -193,12 +193,26 @@ defmodule Cafex.Protocol.Codec do
       <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 50, 255, 110, 30, 1, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
   """
   @spec encode_message(Message.t) :: binary
-  def encode_message(%Message{magic_byte: magic_byte,
+  def encode_message(%Message{magic_byte: 0,
                               compression: compression_type,
                               offset: offset,
                               key: key,
-                              value: value}) do
-    sub = << magic_byte :: 8, encode_attributes(compression_type) :: 8,
+                              value: value} = msg) do
+    sub = << 0 :: 8, encode_attributes(msg) :: 8,
+             encode_bytes(key) :: binary, encode_bytes(value) :: binary >>
+    crc = :erlang.crc32(sub)
+    msg = << crc :: 32, sub :: binary >>
+    << offset :: 64-signed, byte_size(msg) :: 32-signed, msg :: binary >>
+  end
+
+  def encode_message(%Message{magic_byte: 1,
+                              compression: compression_type,
+                              offset: offset,
+                              timestamp_type: ts_type,
+                              timestamp: ts,
+                              key: key,
+                              value: value} = msg) do
+    sub = << 1 :: 8, encode_attributes(msg) :: 8, ts :: 64-signed,
              encode_bytes(key) :: binary, encode_bytes(value) :: binary >>
     crc = :erlang.crc32(sub)
     msg = << crc :: 32, sub :: binary >>
@@ -376,9 +390,19 @@ defmodule Cafex.Protocol.Codec do
     end
   end
 
-  defp encode_attributes(compression_type) do
+  defp encode_attributes(%Message{magic_byte: 0, compression: compression_type}) do
     << attr :: 8 >> = << 0 :: 4, 0 :: 1, encode_compression(compression_type) :: 3 >>
     attr
+  end
+  defp encode_attributes(%Message{magic_byte: 1, compression: compress_type, timestamp_type: ts_type}) do
+    << attr :: 8 >> = << 0 :: 4, encode_timestamp_type(ts_type) :: 1, encode_compression(compress_type) :: 3 >>
+    attr
+  end
+
+  @timestamp_types %{:create_time => 0, :log_append_time => 1}
+  for {type, code} <- @timestamp_types do
+    defp encode_timestamp_type(unquote(type)), do: unquote(code)
+    defp decode_timestamp_type(unquote(code)), do: unquote(type)
   end
 
   defp decode_attributes(<< _ :: 4, _ :: 1, compression :: 3 >>), do: decode_compression(compression)
