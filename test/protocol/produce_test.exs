@@ -24,7 +24,7 @@ defmodule Cafex.Protocol.Produce.Test do
     key = nil
     partition = 0
 
-    sub = << 1 :: 8, 0 :: 8, -1 :: 32, byte_size(value) :: 32, value :: binary>>
+    sub = << 0 :: 8, 0 :: 8, -1 :: 32, byte_size(value) :: 32, value :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
@@ -129,17 +129,17 @@ defmodule Cafex.Protocol.Produce.Test do
     value3 = "{\"id\":3, \"name\": \"user3\"}"
     key = ""
 
-    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value1) :: 32, value1 :: binary>>
+    sub = << 0 :: 8, 0 :: 8, 0 :: 32, byte_size(value1) :: 32, value1 :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
 
-    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value2) :: 32, value2 :: binary>>
+    sub = << 0 :: 8, 0 :: 8, 0 :: 32, byte_size(value2) :: 32, value2 :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = msg_bin <> <<1 :: 64, byte_size(msg) :: 32, msg :: binary >>
 
-    sub = << 1 :: 8, 0 :: 8, 0 :: 32, byte_size(value3) :: 32, value3 :: binary>>
+    sub = << 0 :: 8, 0 :: 8, 0 :: 32, byte_size(value3) :: 32, value3 :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     orig_msg_bin = msg_bin <> <<2 :: 64, byte_size(msg) :: 32, msg :: binary >>
@@ -157,16 +157,16 @@ defmodule Cafex.Protocol.Produce.Test do
     request = %Request{ required_acks: required_acks,
                         timeout: timeout,
                         messages: [
-                          %Message{topic: topic, partition: partition, key: key, value: value1, offset: 0},
-                          %Message{topic: topic, partition: partition, key: key, value: value2, offset: 1},
-                          %Message{topic: topic, partition: partition, key: key, value: value3, offset: 2},
+                          %Message{topic: topic, partition: partition, key: key, value: value1, offset: 0, timestamp_type: nil, magic_byte: 0},
+                          %Message{topic: topic, partition: partition, key: key, value: value2, offset: 1, timestamp_type: nil, magic_byte: 0},
+                          %Message{topic: topic, partition: partition, key: key, value: value3, offset: 2, timestamp_type: nil, magic_byte: 0},
                         ] }
 
     assert expected_request == Produce.encode(request)
 
     compressed = :zlib.gzip(orig_msg_bin)
 
-    sub = << 1 :: 8, 1 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
+    sub = << 0 :: 8, 1 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>
@@ -186,7 +186,7 @@ defmodule Cafex.Protocol.Produce.Test do
     assert expected_request == Produce.encode(request)
 
     {:ok, compressed} = :snappy.compress(orig_msg_bin)
-    sub = << 1 :: 8, 2 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
+    sub = << 0 :: 8, 2 :: 8, -1 :: 32, byte_size(compressed) :: 32, compressed :: binary>>
     crc = :erlang.crc32(sub)
     msg = <<crc :: 32,  sub :: binary>>
     msg_bin = <<0 :: 64, byte_size(msg) :: 32, msg :: binary >>

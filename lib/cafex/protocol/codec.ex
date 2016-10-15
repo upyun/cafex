@@ -183,14 +183,20 @@ defmodule Cafex.Protocol.Codec do
 
   ## Examples
 
-      iex> encode_message(%Cafex.Protocol.Message{value: "hey"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 35, 184, 178, 24, 1, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey", timestamp: nil})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 254, 46, 107, 157, 0, 0, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
+
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey", timestamp: 1, magic_byte: 1, timestamp_type: :create_time})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 180, 33, 39, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 255, 255, 255, 255, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: ""})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 183, 192, 252, 11, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 106, 86, 37, 142, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 104, 101, 121>>
 
       iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key"})
-      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 50, 255, 110, 30, 1, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 156, 151, 255, 143, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
+
+      iex> encode_message(%Cafex.Protocol.Message{value: "hey", key: "key", magic_byte: 1, timestamp_type: :create_time})
+      <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 82, 200, 27, 221, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 107, 101, 121, 0, 0, 0, 3, 104, 101, 121>>
   """
   @spec encode_message(Message.t) :: binary
   def encode_message(%Message{magic_byte: 0,
@@ -237,14 +243,23 @@ defmodule Cafex.Protocol.Codec do
                         msg_size :: 32-signed,
                         msg :: size(msg_size)-binary,
                         rest :: binary >>) do
-    << _crc :: 32, magic :: 8, attributes :: 8, data :: binary >> = msg
+    { _crc, magic, attributes, timestamp_type, timestamp, compression, data} =
+    case msg do
+      << crc :: 32, 0 :: 8, attributes :: 8, data :: binary >> ->
+        {_, compression} = decode_attributes(<< attributes :: 8>>)
+        { crc, 0, attributes, nil, nil, compression, data}
+      << crc :: 32, 1 :: 8, attributes :: 8, timestamp :: 64, data :: binary >> ->
+        {timestamp_type, compression} = decode_attributes(<< attributes :: 8>>)
+        { crc, 1, attributes, timestamp_type, timestamp, compression, data}
+    end
     {key, data} = decode_bytes(data)
     {value,  _} = decode_bytes(data)
     msgs = %Message{key: key,
                    value: value,
                    magic_byte: magic,
                    attributes: attributes,
-                   compression: decode_attributes(<<attributes :: 8>>),
+                   timestamp_type: timestamp_type,
+                   compression: compression,
                    offset: offset} |> decode_compressed_messages
     {msgs, rest}
   end
@@ -405,7 +420,9 @@ defmodule Cafex.Protocol.Codec do
     defp decode_timestamp_type(unquote(code)), do: unquote(type)
   end
 
-  defp decode_attributes(<< _ :: 4, _ :: 1, compression :: 3 >>), do: decode_compression(compression)
+  defp decode_attributes(<< _ :: 4, timestamp_type :: 1, compression :: 3 >>) do
+    {decode_timestamp_type(timestamp_type), decode_compression(compression)}
+  end
 
   @compressions %{nil => 0, :gzip => 1, :snappy => 2}
   for {type, code} <- @compressions do

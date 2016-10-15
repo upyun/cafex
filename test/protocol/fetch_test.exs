@@ -29,7 +29,7 @@ defmodule Cafex.Protocol.Fetch.Test do
     response = << 1 :: 32, 3 :: 16, "bar" :: binary,
                   1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64,
                   32 :: 32,
-                    1 :: 64, 20 :: 32, 0 :: 32, 1 :: 8, 0 :: 8,
+                    1 :: 64, 20 :: 32, 0 :: 32, 0 :: 8, 0 :: 8,
                     3 :: 32, "foo" :: binary,
                     3 :: 32, "bar" :: binary >>
 
@@ -40,6 +40,8 @@ defmodule Cafex.Protocol.Fetch.Test do
                             messages: [%Message{attributes: 0,
                                                 key: "foo",
                                                 offset: 1,
+                                                timestamp_type: nil,
+                                                magic_byte: 0,
                                                 value: "bar"}]
                            }]}]}
     assert expected_response == Fetch.decode(response)
@@ -49,18 +51,18 @@ defmodule Cafex.Protocol.Fetch.Test do
     response = << 1 :: 32, 4 :: 16, "food" :: binary,
                   1 :: 32, 0 :: 32, 0 :: 16, 56 :: 64,
                   87 :: 32,
-                    0 :: 64, 17 :: 32, 0 :: 32, 1 :: 8, 0 :: 8,
+                    0 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8,
                     -1 :: 32, 3 :: 32, "hey" :: binary,
-                    1 :: 64, 17 :: 32, 0 :: 32, 1 :: 8, 0 :: 8,
+                    1 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8,
                     -1 :: 32, 3 :: 32, "hey" :: binary,
-                    2 :: 64, 17 :: 32, 0 :: 32, 1 :: 8, 0 :: 8,
+                    2 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8,
                     -1 :: 32, 3 :: 32, "hey" :: binary >>
 
     expected_response = %Response{topics: [{"food", [
           %{error: :no_error, hwm_offset: 56, partition: 0, messages: [
-              %Message{attributes: 0, key: nil, offset: 0, value: "hey"},
-              %Message{attributes: 0, key: nil, offset: 1, value: "hey"},
-              %Message{attributes: 0, key: nil, offset: 2, value: "hey"}
+              %Message{attributes: 0, key: nil, offset: 0, value: "hey", timestamp_type: nil, magic_byte: 0},
+              %Message{attributes: 0, key: nil, offset: 1, value: "hey", timestamp_type: nil, magic_byte: 0},
+              %Message{attributes: 0, key: nil, offset: 2, value: "hey", timestamp_type: nil, magic_byte: 0}
             ]}]}]}
     assert expected_response == Fetch.decode(response)
   end
@@ -69,10 +71,10 @@ defmodule Cafex.Protocol.Fetch.Test do
     response = << 1 :: 32, 3 :: 16, "bar" :: binary,
                   1 :: 32, 0 :: 32, 0 :: 16, 10 :: 64,
                   29 :: 32,
-                    1 :: 64, 17 :: 32, 0 :: 32, 1 :: 8, 0 :: 8, -1 :: 32, 3 :: 32, "bar" :: binary >>
+                    1 :: 64, 17 :: 32, 0 :: 32, 0 :: 8, 0 :: 8, -1 :: 32, 3 :: 32, "bar" :: binary >>
     expected_response = %Response{topics: [{"bar", [
             %{error: :no_error, hwm_offset: 10, partition: 0, messages: [
-                %Message{attributes: 0, key: nil, offset: 1, value: "bar"}
+                %Message{attributes: 0, key: nil, offset: 1, value: "bar", timestamp_type: nil, magic_byte: 0}
               ]}]}]}
     assert expected_response == Fetch.decode(response)
   end

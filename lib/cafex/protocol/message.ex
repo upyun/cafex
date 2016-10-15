@@ -5,9 +5,9 @@ defmodule Cafex.Protocol.Message do
             value: nil,
             key: nil,
             offset: 0,
-            magic_byte: 1,
+            magic_byte: 0,
             attributes: 0,
-            timestamp_type: :create_time,
+            timestamp_type: nil,
             compression: nil,
             metadata: nil,
             timestamp: 0
