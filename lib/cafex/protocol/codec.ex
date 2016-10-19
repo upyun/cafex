@@ -200,7 +200,6 @@ defmodule Cafex.Protocol.Codec do
   """
   @spec encode_message(Message.t) :: binary
   def encode_message(%Message{magic_byte: 0,
-                              compression: compression_type,
                               offset: offset,
                               key: key,
                               value: value} = msg) do
@@ -212,9 +211,7 @@ defmodule Cafex.Protocol.Codec do
   end
 
   def encode_message(%Message{magic_byte: 1,
-                              compression: compression_type,
                               offset: offset,
-                              timestamp_type: ts_type,
                               timestamp: ts,
                               key: key,
                               value: value} = msg) do
@@ -259,6 +256,7 @@ defmodule Cafex.Protocol.Codec do
                    magic_byte: magic,
                    attributes: attributes,
                    timestamp_type: timestamp_type,
+                   timestamp: timestamp,
                    compression: compression,
                    offset: offset} |> decode_compressed_messages
     {msgs, rest}
