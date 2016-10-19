@@ -56,7 +56,7 @@ defmodule Cafex.Topic.Server do
 
     client_id = Keyword.get(opts, :client_id, "cafex")
 
-    :random.seed(:os.timestamp)
+    :rand.seed(:exs1024)
 
     state = %State{name: name,
                    feed_brokers: Enum.shuffle(brokers),
