@@ -162,6 +162,11 @@ defmodule Cafex.Consumer.Worker do
   end
 
   @doc false
+  def handle_info(_info, state_name, state) do
+    {:next_state, state_name, state}
+  end
+
+  @doc false
   def terminate(_reason, _state_name, %{handler: handler,
                                       handler_data: data} = state_data) do
     close_connection(state_data)
